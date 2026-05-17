@@ -1,0 +1,27 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Generated platform folders (run `flutter create .` to regenerate)
+app/android/
+app/ios/
+app/linux/
+app/macos/
+app/windows/
+app/web/
+app/.idea/
+app/.vscode/
+
+# Editor / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Runtime state for the mock gateway
+server/data/runtime.json
+server/.dart_tool/
