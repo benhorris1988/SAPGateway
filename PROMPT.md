@@ -29,10 +29,10 @@ current branch from this alone.
 > `VBELN`, `LIFNR`, `EBELN`, `PERNR`, `BELNR`, `WRBTR`, `WAERS`,
 > `KOSTL`, `SAKNR`, ...), and SAP-style formatting (zero-padded keys
 > like `0000001000`, uppercase country codes, stringified decimals,
-> ISO datetimes). Use OData-style EDM type tags
-> (`Edm.String`/`Edm.Decimal`/`Edm.DateTime`/...) for the schema metadata
-> since they're a clean, well-known way to describe ECC field types
-> even if the wire format is plain REST/JSON.
+> ISO datetimes). Schema metadata uses plain JSON type tags —
+> `{ type: 'string'|'decimal'|'datetime'|'boolean'|'int', maxLength?,
+> precision?, scale?, nullable?, label? }`. **Do not use OData / EDMX /
+> Edm.* type names** — the wire format is pure REST/JSON.
 >
 > ### Repo layout
 > ```
@@ -45,40 +45,30 @@ current branch from this alone.
 >
 > ### Server (Dart, package `shelf` + `shelf_router`, no other deps)
 >
-> Expose the following mounts under a CORS-enabled pipeline with request
-> logging. REST is the primary surface; OData is an optional compatibility
-> layer only because some downstream SAP tooling assumes it, and can be
-> skipped.
+> Expose three mounts under a CORS-enabled pipeline with request logging.
+> **REST is the only consumer surface — do not implement OData / EDMX /
+> `$metadata` / `$filter` / `$top`-style query options.** If a future
+> SAP-side consumer needs OData specifically, that's a separate request.
 >
-> 1. **REST** at `/api/v1/` — *the* contract:
+> 1. **REST** at `/api/v1/` — *the* contract for both inbound reads and
+>    outbound writes:
 >    - `GET /` discovery (lists collections, entity types, row counts)
 >    - `GET /{collection}` list with `?limit&offset&sort&search` + any
 >      other query param treated as an equality filter; response shape
 >      `{ data, total, limit, offset }`
 >    - `GET/PUT/PATCH/DELETE /{collection}/{id}`, `POST /{collection}`
->    - Collection name = EntitySet name lowercased, trailing `Set`
+>    - Collection name = entity-set name lowercased, trailing `Set`
 >      stripped, `s` appended (`CustomerSet` → `customers`,
 >      `ExpenseSet` → `expenses`). Composite keys joined with commas.
 >    - Expose the collection-name → (EntitySet, EntityType) lookup as a
 >      public method so other handlers can reuse it.
 >
-> 2. **OData v2** at `/sap/opu/odata/sap/` (*optional / nice-to-have*) —
->    same underlying data, OData v2 envelope. Include this only if it's
->    cheap; the real target may or may not expose OData. If included:
->    service catalog, per-service document, `$metadata` (EDMX), EntitySet
->    collections, query options (`$top`/`$skip`/`$orderby`/`$select`/
->    `$inlinecount=allpages`/`$format=json|xml` and a `$filter` subset:
->    `eq`/`ne`/`gt`/`ge`/`lt`/`le`/`and`/`or`/parens/`substringof`/
->    `startswith`/`endswith`). Wrap rows in `{ d: { results: [...] } }`
->    with a `__metadata` block per row. Single-key and composite-key
->    item URIs (`Set('key')` and `Set(F1='a',F2='b')`).
->
-> 3. **Admin JSON API** at `/admin/` for schema + row CRUD that the
+> 2. **Admin JSON API** at `/admin/` for schema + row CRUD that the
 >    Flutter app uses to manage services, entity types, properties
 >    (including renames that cascade to row keys), entity sets and rows.
 >    Plus `POST /admin/reset` to restore the seed.
 >
-> 4. **Integration layer** at `/api/v1/integration/`:
+> 3. **Integration layer** at `/api/v1/integration/`:
 >    - `GET /config` returns SurrealDB connection (password redacted as
 >      a boolean `passwordSet`) plus all mappings
 >    - `PUT /config/surreal` updates connection (endpoint, namespace,
@@ -119,9 +109,9 @@ current branch from this alone.
 > The auth scheme on the real ECC 6 REST endpoints is **not yet
 > agreed**. Don't hard-code one. Build the mock so that:
 >
-> - The REST + OData + Admin + Integration handlers all pass through a
->   single shelf middleware (`authMiddleware`) that today is a no-op
->   (allow all) but is the one place a future scheme drops in.
+> - The REST + Admin + Integration handlers all pass through a single
+>   shelf middleware (`authMiddleware`) that today is a no-op (allow
+>   all) but is the one place a future scheme drops in.
 > - The Flutter `GatewayApi` builds every request via a single
 >   `_authHeaders()` hook that today returns `{}` but is the one place
 >   credentials get attached.
@@ -228,13 +218,14 @@ current branch from this alone.
 >
 > ### README
 > Cover: running the server, running the Flutter app (incl. the
-> `flutter create .` step), the OData query subset, the REST shape,
-> the integration endpoints, and a worked example for writing an
-> expense back to SAP via REST and via the integration push.
+> `flutter create .` step), the REST shape (collection naming, query
+> params, response envelope), the integration endpoints, and a worked
+> example for writing an expense back to SAP via REST and via the
+> integration push.
 >
 > ### Definition of done
-> - `dart run bin/server.dart` boots without errors and serves the REST,
->   Admin and Integration mounts (OData if included)
+> - `dart run bin/server.dart` boots without errors and serves the
+>   REST, Admin and Integration mounts
 > - `curl /api/v1/employees` and `curl /api/v1/expenses` return the seed
 >   rows; `POST /api/v1/expenses` creates one; `PATCH
 >   /api/v1/expenses/{id}` updates Status — this is the **outbound
@@ -262,8 +253,7 @@ current branch from this alone.
   surface-by-surface reproduction is.
 - **Iterate, don't one-shot.** A sensible order:
   1. Build the mock ECC 6 REST API + Flutter admin (HR + Expenses
-     services, plus supporting ECC reads). Skip OData entirely on the
-     first pass — only add it later if a downstream consumer needs it.
+     services, plus supporting ECC reads).
   2. Add the no-op auth middleware + Flutter auth-mode stub. Keep the
      real scheme TBD; this is purely the seam.
   3. Add the SurrealDB integration with audit, plus the Integration tab.
@@ -271,10 +261,11 @@ current branch from this alone.
   Splitting the prompt the same way often produces better results
   than handing the agent the whole thing at once.
 
-- **Don't assume SAP Gateway.** The real ECC 6 system may *or may not*
-  sit behind SAP NetWeaver Gateway — the integration contract is REST
-  either way. The mock should not assume `/sap/opu/odata/sap/` URL
-  shapes are the primary surface.
+- **REST only — not OData.** The real ECC 6 system exposes REST APIs
+  for both inbound reads and outbound writes. Do not build
+  `/sap/opu/odata/sap/`, `$metadata`, EDMX, `$filter`, or any other
+  OData artefact. Schema metadata is plain JSON (`type: 'string'`,
+  not `Edm.String`).
 
 - **Auth will change.** Treat the current no-op middleware and empty
   `_authHeaders()` as the contract; a future iteration will fill them
