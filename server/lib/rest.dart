@@ -207,6 +207,11 @@ class RestHandler {
 
   // ─── Helpers ───────────────────────────────────────────────────────────
 
+  /// Public lookup so other handlers (e.g. the integration layer) can
+  /// resolve the same REST collection names this handler exposes.
+  (EntitySet, EntityType)? resolveCollection(String collection) =>
+      _resolve(collection.toLowerCase());
+
   (EntitySet, EntityType)? _resolve(String collection) {
     for (final svc in store.services) {
       for (final es in svc.entitySets) {

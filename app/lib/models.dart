@@ -125,3 +125,196 @@ class EntitySetSummary {
         rowCount: (json['rowCount'] as int?) ?? 0,
       );
 }
+
+// ─── Integration models ───────────────────────────────────────────────
+
+class IntegrationConfig {
+  IntegrationConfig({required this.surreal, required this.mappings});
+
+  final SurrealConnection surreal;
+  final List<MappingConfig> mappings;
+
+  factory IntegrationConfig.fromJson(Map<String, dynamic> json) =>
+      IntegrationConfig(
+        surreal: SurrealConnection.fromJson(
+            (json['surreal'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        mappings: ((json['mappings'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(MappingConfig.fromJson)
+            .toList(),
+      );
+}
+
+class SurrealConnection {
+  SurrealConnection({
+    required this.endpoint,
+    required this.namespace,
+    required this.database,
+    required this.username,
+    required this.passwordSet,
+  });
+
+  final String endpoint;
+  final String namespace;
+  final String database;
+  final String username;
+  final bool passwordSet;
+
+  factory SurrealConnection.fromJson(Map<String, dynamic> json) =>
+      SurrealConnection(
+        endpoint: (json['endpoint'] as String?) ?? '',
+        namespace: (json['namespace'] as String?) ?? '',
+        database: (json['database'] as String?) ?? '',
+        username: (json['username'] as String?) ?? '',
+        passwordSet: (json['passwordSet'] as bool?) ?? false,
+      );
+}
+
+class MappingConfig {
+  MappingConfig({
+    required this.collection,
+    required this.table,
+    required this.direction,
+    this.fieldMap = const {},
+    this.pushFilter = const {},
+  });
+
+  final String collection;
+  final String table;
+  final String direction; // inbound | outbound | both
+  final Map<String, String> fieldMap;
+  final Map<String, String> pushFilter;
+
+  static const List<String> directions = ['inbound', 'outbound', 'both'];
+
+  bool get canPull => direction == 'inbound' || direction == 'both';
+  bool get canPush => direction == 'outbound' || direction == 'both';
+
+  Map<String, dynamic> toJson() => {
+        'collection': collection,
+        'table': table,
+        'direction': direction,
+        'fieldMap': fieldMap,
+        'pushFilter': pushFilter,
+      };
+
+  factory MappingConfig.fromJson(Map<String, dynamic> json) => MappingConfig(
+        collection: json['collection'] as String,
+        table: (json['table'] as String?) ?? json['collection'] as String,
+        direction: (json['direction'] as String?) ?? 'inbound',
+        fieldMap: ((json['fieldMap'] as Map?) ?? const {})
+            .map((k, v) => MapEntry(k.toString(), v.toString())),
+        pushFilter: ((json['pushFilter'] as Map?) ?? const {})
+            .map((k, v) => MapEntry(k.toString(), v.toString())),
+      );
+}
+
+class SyncResult {
+  SyncResult({
+    required this.direction,
+    required this.collection,
+    required this.status,
+    required this.dryRun,
+    this.rowsScanned = 0,
+    this.rowsCreated = 0,
+    this.rowsUpdated = 0,
+    this.rowsSkipped = 0,
+    this.rowsFailed = 0,
+    this.durationMs = 0,
+    this.error,
+    this.errors = const [],
+  });
+
+  final String direction;
+  final String collection;
+  final String status;
+  final bool dryRun;
+  final int rowsScanned;
+  final int rowsCreated;
+  final int rowsUpdated;
+  final int rowsSkipped;
+  final int rowsFailed;
+  final int durationMs;
+  final String? error;
+  final List<String> errors;
+
+  factory SyncResult.fromJson(Map<String, dynamic> json) => SyncResult(
+        direction: (json['direction'] as String?) ?? '',
+        collection: (json['collection'] as String?) ?? '',
+        status: (json['status'] as String?) ?? '',
+        dryRun: (json['dryRun'] as bool?) ?? false,
+        rowsScanned: (json['rowsScanned'] as int?) ?? 0,
+        rowsCreated: (json['rowsCreated'] as int?) ?? 0,
+        rowsUpdated: (json['rowsUpdated'] as int?) ?? 0,
+        rowsSkipped: (json['rowsSkipped'] as int?) ?? 0,
+        rowsFailed: (json['rowsFailed'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 0,
+        error: json['error'] as String?,
+        errors: ((json['errors'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+}
+
+class AuditPage {
+  AuditPage({required this.total, required this.events});
+
+  final int total;
+  final List<AuditEntry> events;
+
+  factory AuditPage.fromJson(Map<String, dynamic> json) => AuditPage(
+        total: (json['total'] as int?) ?? 0,
+        events: ((json['events'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(AuditEntry.fromJson)
+            .toList(),
+      );
+}
+
+class AuditEntry {
+  AuditEntry({
+    required this.id,
+    required this.timestamp,
+    required this.action,
+    this.collection,
+    required this.status,
+    this.dryRun = false,
+    this.rowsScanned,
+    this.rowsCreated,
+    this.rowsUpdated,
+    this.rowsSkipped,
+    this.rowsFailed,
+    this.durationMs,
+    this.message,
+  });
+
+  final String id;
+  final DateTime timestamp;
+  final String action;
+  final String? collection;
+  final String status;
+  final bool dryRun;
+  final int? rowsScanned;
+  final int? rowsCreated;
+  final int? rowsUpdated;
+  final int? rowsSkipped;
+  final int? rowsFailed;
+  final int? durationMs;
+  final String? message;
+
+  factory AuditEntry.fromJson(Map<String, dynamic> json) => AuditEntry(
+        id: json['id'] as String,
+        timestamp: DateTime.parse(json['timestamp'] as String),
+        action: json['action'] as String,
+        collection: json['collection'] as String?,
+        status: json['status'] as String,
+        dryRun: (json['dryRun'] as bool?) ?? false,
+        rowsScanned: json['rowsScanned'] as int?,
+        rowsCreated: json['rowsCreated'] as int?,
+        rowsUpdated: json['rowsUpdated'] as int?,
+        rowsSkipped: json['rowsSkipped'] as int?,
+        rowsFailed: json['rowsFailed'] as int?,
+        durationMs: json['durationMs'] as int?,
+        message: json['message'] as String?,
+      );
+}

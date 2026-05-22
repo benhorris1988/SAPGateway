@@ -6,6 +6,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import 'package:sap_gateway_server/admin.dart';
+import 'package:sap_gateway_server/integration.dart';
 import 'package:sap_gateway_server/odata.dart';
 import 'package:sap_gateway_server/rest.dart';
 import 'package:sap_gateway_server/store.dart';
@@ -19,12 +20,26 @@ Future<void> main(List<String> args) async {
         help: 'Path used to persist the configured gateway state.');
   final opts = parser.parse(args);
 
-  final store = GatewayStore(persistencePath: opts['data'] as String);
+  final dataPath = opts['data'] as String;
+  final dataDir = File(dataPath).parent.path;
+
+  final store = GatewayStore(persistencePath: dataPath);
   await store.load();
+
+  final integrationConfig = IntegrationConfigStore('$dataDir/integration.json');
+  await integrationConfig.load();
+  final auditStore = AuditStore('$dataDir/audit.json');
+  await auditStore.load();
 
   final odata = ODataHandler(store);
   final rest = RestHandler(store);
   final admin = AdminHandler(store);
+  final integration = IntegrationHandler(
+    store,
+    integrationConfig,
+    auditStore,
+    rest.resolveCollection,
+  );
 
   final root = Router()
     ..get(
@@ -39,6 +54,7 @@ Future<void> main(List<String> args) async {
     ..get('/api/v1', (Request _) => Response.movedPermanently('/api/v1/'))
     ..get('/admin', (Request _) => Response.movedPermanently('/admin/services'))
     ..mount('/sap/opu/odata/sap/', odata.handler)
+    ..mount('/api/v1/integration/', integration.handler)
     ..mount('/api/v1/', rest.handler)
     ..mount('/admin/', admin.router.call);
 
@@ -51,10 +67,12 @@ Future<void> main(List<String> args) async {
   final host = opts['host'] as String;
   final server = await shelf_io.serve(pipeline, host, port);
   stdout.writeln('SAP Gateway mock listening on http://$host:${server.port}');
-  stdout.writeln('  REST API:   http://$host:${server.port}/api/v1/');
-  stdout
-      .writeln('  OData root: http://$host:${server.port}/sap/opu/odata/sap/');
-  stdout.writeln('  Admin API:  http://$host:${server.port}/admin/services');
+  stdout.writeln('  REST API:    http://$host:${server.port}/api/v1/');
+  stdout.writeln(
+      '  Integration: http://$host:${server.port}/api/v1/integration/config');
+  stdout.writeln(
+      '  OData root:  http://$host:${server.port}/sap/opu/odata/sap/');
+  stdout.writeln('  Admin API:   http://$host:${server.port}/admin/services');
 }
 
 Middleware get _cors => (inner) => (req) async {
@@ -95,6 +113,7 @@ const _landing = '''
 <p>Two consumer surfaces over the same data:</p>
 <ul>
   <li><a href="/api/v1/">/api/v1/</a> &mdash; <strong>REST API</strong> (recommended)</li>
+  <li><a href="/api/v1/integration/config">/api/v1/integration/config</a> &mdash; SAP &harr; SurrealDB integration (sync + audit)</li>
   <li><a href="/sap/opu/odata/sap/">/sap/opu/odata/sap/</a> &mdash; OData v2 surface (legacy / SAP NetWeaver compatibility)</li>
   <li><a href="/admin/services">/admin/services</a> &mdash; admin API (schema + row CRUD)</li>
 </ul>

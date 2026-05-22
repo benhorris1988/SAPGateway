@@ -105,6 +105,67 @@ curl -X PATCH http://localhost:8080/api/v1/expenses/1900000099 \
   -d '{"Status": "POSTED"}'
 ```
 
+## SAP ↔ SurrealDB integration
+
+The gateway also ships an integration layer at `/api/v1/integration/`
+that mirrors data between the SAP surface and an external SurrealDB
+instance, with a full audit log. The Flutter app has a dedicated
+"Integration" tab for managing the whole flow visually.
+
+```
+GET    /api/v1/integration/config                       config + mappings
+PUT    /api/v1/integration/config/surreal               update connection
+PUT    /api/v1/integration/config/mappings/{collection} upsert mapping
+DELETE /api/v1/integration/config/mappings/{collection} delete mapping
+POST   /api/v1/integration/test-connection              probe SurrealDB
+POST   /api/v1/integration/pull/{collection}?dryRun=    SAP -> SurrealDB
+POST   /api/v1/integration/push/{collection}?dryRun=    SurrealDB -> SAP
+GET    /api/v1/integration/audit?limit=                 audit events
+DELETE /api/v1/integration/audit                        clear audit
+```
+
+A **mapping** binds one SAP REST collection (e.g. `expenses`) to one
+SurrealDB table, with a direction (`inbound` / `outbound` / `both`) and
+an optional `pushFilter` (equality predicate that gates which Surreal
+records get written back to SAP — used to e.g. only post expenses with
+`Status=SUBMITTED`). Default mappings ship for `expenses` (both ways,
+with a `Status=SUBMITTED` push filter) and read-only inbound for
+customers / materials / vendors.
+
+```bash
+# point at your SurrealDB server
+curl -X PUT http://localhost:8080/api/v1/integration/config/surreal \
+  -H 'content-type: application/json' \
+  -d '{
+        "endpoint":  "http://my-surreal:8000",
+        "namespace": "sap",
+        "database":  "gateway",
+        "username":  "root",
+        "password":  "..."
+      }'
+
+# verify it
+curl -X POST http://localhost:8080/api/v1/integration/test-connection
+
+# dry-run a pull to see what would change
+curl -X POST 'http://localhost:8080/api/v1/integration/pull/expenses?dryRun=true'
+
+# real pull (SAP -> SurrealDB)
+curl -X POST http://localhost:8080/api/v1/integration/pull/expenses
+
+# push approved expenses back to SAP
+curl -X POST http://localhost:8080/api/v1/integration/push/expenses
+
+# see what happened
+curl http://localhost:8080/api/v1/integration/audit
+```
+
+Every run, config change and connection test is appended to a
+persistent audit log (`server/data/audit.json`) with status, row
+counts and duration. Connection config + mappings live in
+`server/data/integration.json`; passwords are never returned over the
+wire (only a `passwordSet: true/false` flag).
+
 ## Running the Flutter app
 
 The `app/` directory only contains the cross-platform `lib/` source and

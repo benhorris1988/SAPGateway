@@ -201,6 +201,80 @@ class GatewayApi {
     _check(await http.post(_u('/admin/reset')));
   }
 
+  // ─── Integration (SAP <-> SurrealDB) ────────────────────────────────
+
+  Future<IntegrationConfig> getIntegrationConfig() async {
+    final res = await http.get(_u('/api/v1/integration/config'));
+    _check(res);
+    return IntegrationConfig.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<void> updateSurrealConfig({
+    required String endpoint,
+    required String namespace,
+    required String database,
+    required String username,
+    required String password,
+  }) async {
+    final res = await http.put(
+      _u('/api/v1/integration/config/surreal'),
+      headers: _jsonHeader,
+      body: jsonEncode({
+        'endpoint': endpoint,
+        'namespace': namespace,
+        'database': database,
+        'username': username,
+        'password': password,
+      }),
+    );
+    _check(res);
+  }
+
+  Future<void> upsertMapping(MappingConfig m) async {
+    final res = await http.put(
+      _u('/api/v1/integration/config/mappings/${m.collection}'),
+      headers: _jsonHeader,
+      body: jsonEncode(m.toJson()),
+    );
+    _check(res);
+  }
+
+  Future<void> deleteMapping(String collection) async {
+    _check(await http
+        .delete(_u('/api/v1/integration/config/mappings/$collection')));
+  }
+
+  Future<Map<String, dynamic>> testSurrealConnection() async {
+    final res = await http.post(_u('/api/v1/integration/test-connection'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<SyncResult> runPull(String collection, {bool dryRun = false}) async {
+    final res = await http.post(
+        _u('/api/v1/integration/pull/$collection?dryRun=$dryRun'));
+    _check(res);
+    return SyncResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<SyncResult> runPush(String collection, {bool dryRun = false}) async {
+    final res = await http.post(
+        _u('/api/v1/integration/push/$collection?dryRun=$dryRun'));
+    _check(res);
+    return SyncResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<AuditPage> listAudit({int limit = 100}) async {
+    final res = await http.get(_u('/api/v1/integration/audit?limit=$limit'));
+    _check(res);
+    return AuditPage.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<void> clearAudit() async {
+    _check(await http.delete(_u('/api/v1/integration/audit')));
+  }
+
   static const Map<String, String> _jsonHeader = {
     'content-type': 'application/json',
   };
