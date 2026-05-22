@@ -7,6 +7,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'package:sap_gateway_server/admin.dart';
 import 'package:sap_gateway_server/odata.dart';
+import 'package:sap_gateway_server/rest.dart';
 import 'package:sap_gateway_server/store.dart';
 
 Future<void> main(List<String> args) async {
@@ -22,6 +23,7 @@ Future<void> main(List<String> args) async {
   await store.load();
 
   final odata = ODataHandler(store);
+  final rest = RestHandler(store);
   final admin = AdminHandler(store);
 
   final root = Router()
@@ -34,8 +36,10 @@ Future<void> main(List<String> args) async {
     // trailing slash — shelf_router's mount requires one.
     ..get('/sap/opu/odata/sap',
         (Request _) => Response.movedPermanently('/sap/opu/odata/sap/'))
+    ..get('/api/v1', (Request _) => Response.movedPermanently('/api/v1/'))
     ..get('/admin', (Request _) => Response.movedPermanently('/admin/services'))
     ..mount('/sap/opu/odata/sap/', odata.handler)
+    ..mount('/api/v1/', rest.handler)
     ..mount('/admin/', admin.router.call);
 
   final pipeline = const Pipeline()
@@ -47,6 +51,7 @@ Future<void> main(List<String> args) async {
   final host = opts['host'] as String;
   final server = await shelf_io.serve(pipeline, host, port);
   stdout.writeln('SAP Gateway mock listening on http://$host:${server.port}');
+  stdout.writeln('  REST API:   http://$host:${server.port}/api/v1/');
   stdout
       .writeln('  OData root: http://$host:${server.port}/sap/opu/odata/sap/');
   stdout.writeln('  Admin API:  http://$host:${server.port}/admin/services');
@@ -87,14 +92,19 @@ const _landing = '''
   pre  { background: #0f172a; color: #f1f5f9; padding: 12px 16px; border-radius: 6px; overflow:auto; }
 </style></head><body>
 <h1>SAP Gateway (mock)</h1>
-<p>OData v2 surface, configurable through the Flutter admin app or the
-<code>/admin/*</code> JSON API.</p>
+<p>Two consumer surfaces over the same data:</p>
 <ul>
-  <li><a href="/sap/opu/odata/sap/">/sap/opu/odata/sap/</a> &mdash; service catalog</li>
-  <li><a href="/sap/opu/odata/sap/ZSALES_SRV/\$metadata">/sap/opu/odata/sap/ZSALES_SRV/\$metadata</a> &mdash; EDMX schema</li>
-  <li><a href="/sap/opu/odata/sap/ZSALES_SRV/CustomerSet?\$format=json&\$top=5">/sap/opu/odata/sap/ZSALES_SRV/CustomerSet?\$format=json&\$top=5</a> &mdash; sample query</li>
-  <li><a href="/admin/services">/admin/services</a> &mdash; admin API</li>
+  <li><a href="/api/v1/">/api/v1/</a> &mdash; <strong>REST API</strong> (recommended)</li>
+  <li><a href="/sap/opu/odata/sap/">/sap/opu/odata/sap/</a> &mdash; OData v2 surface (legacy / SAP NetWeaver compatibility)</li>
+  <li><a href="/admin/services">/admin/services</a> &mdash; admin API (schema + row CRUD)</li>
 </ul>
-<pre>curl 'http://localhost:8080/sap/opu/odata/sap/ZSALES_SRV/CustomerSet?\$format=json&\$filter=Land1%20eq%20%27US%27'</pre>
+<h2>REST examples</h2>
+<pre># list expenses
+curl http://localhost:8080/api/v1/expenses
+
+# write an expense back to SAP
+curl -X POST http://localhost:8080/api/v1/expenses \\
+  -H 'content-type: application/json' \\
+  -d '{"Belnr":"1900000099","Pernr":"00010001","Wrbtr":"42.50","Waers":"GBP","Sgtxt":"Lunch"}'</pre>
 </body></html>
 ''';

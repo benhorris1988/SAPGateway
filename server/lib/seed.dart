@@ -13,6 +13,7 @@ List<GatewayService> buildSeed() {
     _zpriceSrv(),
     _zstockSrv(),
     _zfinSrv(),
+    _zexpenseSrv(),
   ];
 }
 
@@ -551,6 +552,105 @@ GatewayService _zstockSrv() {
             'Werks': '2000',
             'Labst': '300.000',
             'Meins': 'EA'
+          },
+        ],
+      ),
+    ],
+  );
+}
+
+GatewayService _zexpenseSrv() {
+  final expense = EntityType(
+    name: 'Expense',
+    keys: ['Belnr'],
+    properties: [
+      Property(
+          name: 'Belnr',
+          edmType: 'Edm.String',
+          nullable: false,
+          maxLength: 10,
+          label: 'Document Number'),
+      Property(
+          name: 'Pernr',
+          edmType: 'Edm.String',
+          maxLength: 8,
+          label: 'Employee Number'),
+      Property(name: 'Bldat', edmType: 'Edm.DateTime', label: 'Document Date'),
+      Property(
+          name: 'Wrbtr',
+          edmType: 'Edm.Decimal',
+          precision: 13,
+          scale: 2,
+          label: 'Amount'),
+      Property(
+          name: 'Waers',
+          edmType: 'Edm.String',
+          maxLength: 5,
+          label: 'Currency'),
+      Property(
+          name: 'Kostl',
+          edmType: 'Edm.String',
+          maxLength: 10,
+          label: 'Cost Center'),
+      Property(
+          name: 'Saknr',
+          edmType: 'Edm.String',
+          maxLength: 10,
+          label: 'GL Account'),
+      Property(
+          name: 'Sgtxt',
+          edmType: 'Edm.String',
+          maxLength: 50,
+          label: 'Item Text'),
+      Property(
+          name: 'Status',
+          edmType: 'Edm.String',
+          maxLength: 10,
+          label: 'Posting Status'),
+    ],
+  );
+  return GatewayService(
+    name: 'ZEXPENSE_SRV',
+    namespace: 'ZEXPENSE_SRV',
+    description: 'Employee Expenses (write-back enabled)',
+    entityTypes: [expense],
+    entitySets: [
+      EntitySet(
+        name: 'ExpenseSet',
+        entityTypeName: 'Expense',
+        rows: [
+          {
+            'Belnr': '1900000001',
+            'Pernr': '00010001',
+            'Bldat': '2026-05-02T00:00:00',
+            'Wrbtr': '42.50',
+            'Waers': 'GBP',
+            'Kostl': '0000010000',
+            'Saknr': '0000500000',
+            'Sgtxt': 'Client lunch - London',
+            'Status': 'POSTED',
+          },
+          {
+            'Belnr': '1900000002',
+            'Pernr': '00010002',
+            'Bldat': '2026-05-05T00:00:00',
+            'Wrbtr': '128.00',
+            'Waers': 'EUR',
+            'Kostl': '0000020000',
+            'Saknr': '0000500000',
+            'Sgtxt': 'Taxi Munich airport',
+            'Status': 'POSTED',
+          },
+          {
+            'Belnr': '1900000003',
+            'Pernr': '00010001',
+            'Bldat': '2026-05-18T00:00:00',
+            'Wrbtr': '865.00',
+            'Waers': 'USD',
+            'Kostl': '0000030000',
+            'Saknr': '0000500000',
+            'Sgtxt': 'Hotel - NYC offsite',
+            'Status': 'SUBMITTED',
           },
         ],
       ),
