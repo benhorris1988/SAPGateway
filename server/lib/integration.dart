@@ -560,9 +560,20 @@ class IntegrationConfigStore {
           direction: 'both',
           pushFilter: const {'Status': 'SUBMITTED'},
         ),
-        Mapping(collection: 'customers', table: 'customers', direction: 'inbound'),
-        Mapping(collection: 'materials', table: 'materials', direction: 'inbound'),
-        Mapping(collection: 'vendors', table: 'vendors', direction: 'inbound'),
+        Mapping(collection: 'employees', table: 'employees', direction: 'inbound'),
+        Mapping(collection: 'addresses', table: 'addresses', direction: 'inbound'),
+        Mapping(collection: 'orgunits', table: 'orgunits', direction: 'inbound'),
+        Mapping(collection: 'positions', table: 'positions', direction: 'inbound'),
+        Mapping(collection: 'jobs', table: 'jobs', direction: 'inbound'),
+        Mapping(collection: 'absences', table: 'absences', direction: 'inbound'),
+        Mapping(
+            collection: 'timesheets', table: 'timesheets', direction: 'inbound'),
+        Mapping(
+            collection: 'payrollresults',
+            table: 'payrollresults',
+            direction: 'inbound'),
+        Mapping(
+            collection: 'wagetypes', table: 'wagetypes', direction: 'inbound'),
       ];
 }
 

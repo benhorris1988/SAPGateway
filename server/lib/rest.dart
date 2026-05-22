@@ -17,9 +17,9 @@ import 'store.dart';
 ///   DELETE /api/v1/{collection}/{id} -> 204
 ///
 /// Collection name is the EntitySet name lowercased with the trailing
-/// "Set" stripped and "s" appended (CustomerSet -> customers,
+/// "Set" stripped and "s" appended (EmployeeSet -> employees,
 /// ExpenseSet -> expenses). Composite keys are joined with commas in
-/// declaration order, e.g. `/api/v1/salesorderitems/0000010001,000010`.
+/// declaration order, e.g. `/api/v1/timesheets/00010001,2026-05-18T00:00:00`.
 ///
 /// List query params: `limit`, `offset`, `sort` (comma-separated, `-`
 /// prefix for descending), `search` (case-insensitive substring across

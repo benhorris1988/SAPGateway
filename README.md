@@ -1,11 +1,13 @@
 # SAP Gateway (mock)
 
-A configurable mock of an **SAP NetWeaver Gateway / OData v2** service, plus a
-Flutter front-end to manage it.
+A configurable mock of an **SAP ECC 6** system exposed over **REST**,
+plus a Flutter front-end to manage it. Scoped to **HR + Expenses**:
+inbound reads of personnel/org/time/payroll master data and outbound
+write-back of expense documents.
 
-The shape of the data (services, EntitySets, SAP field codes like KUNNR/MATNR/VBELN)
-is lifted from the `ConnectorExpenses` operator-console mock-ups, but here the
-endpoints are real and queryable.
+Field names match real DDIC codes (PERNR, NACHN, VORNA, ORGEH, BELNR,
+WRBTR, ...) so consumers integrating against this mock get the same
+shape they would from a real ECC 6 system.
 
 ```
 sapgateway/
@@ -23,8 +25,8 @@ dart run bin/server.dart        # listens on :8080
 
 REST API (recommended):    `http://localhost:8080/api/v1/`
 OData root (legacy):       `http://localhost:8080/sap/opu/odata/sap/`
-Per-service metadata:      `http://localhost:8080/sap/opu/odata/sap/ZSALES_SRV/$metadata`
-EntitySet (JSON):          `http://localhost:8080/sap/opu/odata/sap/ZSALES_SRV/CustomerSet?$format=json&$top=5`
+Per-service metadata:      `http://localhost:8080/sap/opu/odata/sap/ZHR_EMPLOYEE_SRV/$metadata`
+EntitySet (JSON):          `http://localhost:8080/sap/opu/odata/sap/ZHR_EMPLOYEE_SRV/EmployeeSet?$format=json&$top=5`
 Admin (JSON):              `http://localhost:8080/admin/services`
 
 Supported OData v2 query options: `$top`, `$skip`, `$orderby`, `$select`,
@@ -34,10 +36,10 @@ Supported OData v2 query options: `$top`, `$skip`, `$orderby`, `$select`,
 
 ## REST API
 
-A flat, REST-style surface mounted at `/api/v1/` exposes the same data
-as the OData layer but in a shape that's nicer to consume from non-SAP
-clients. It is the recommended interface for reading data and for
-writing expenses back into SAP.
+A flat, REST-style surface mounted at `/api/v1/` is the primary
+consumer interface — for reading HR data and for writing expenses
+back into SAP. (The OData layer is left in place for legacy SAP
+tooling but is not required.)
 
 ```
 GET    /api/v1/                       # discovery: list of collections
@@ -50,10 +52,10 @@ DELETE /api/v1/{collection}/{id}      # 204
 ```
 
 Collection name is the EntitySet name lowercased, with the trailing
-`Set` stripped and `s` appended — so `CustomerSet` → `customers`,
-`ExpenseSet` → `expenses`, `MaterialSet` → `materials`, etc.
+`Set` stripped and `s` appended — so `EmployeeSet` → `employees`,
+`ExpenseSet` → `expenses`, `PositionSet` → `positions`, etc.
 Composite keys are joined with commas in declaration order, e.g.
-`/api/v1/salesorderitems/0000010001,000010`.
+`/api/v1/timesheets/00010001,2026-05-18T00:00:00`.
 
 List query parameters:
 
@@ -74,11 +76,14 @@ List response shape:
 ### Reading
 
 ```bash
-# all customers in the US, newest first
-curl 'http://localhost:8080/api/v1/customers?Land1=US&sort=-Erdat'
+# all employees in plant 1000, newest hires first
+curl 'http://localhost:8080/api/v1/employees?Werks=1000&sort=-Begda'
 
-# free-text search across materials
-curl 'http://localhost:8080/api/v1/materials?search=pipe'
+# absences for one employee
+curl 'http://localhost:8080/api/v1/absences?Pernr=00010001'
+
+# free-text search across positions
+curl 'http://localhost:8080/api/v1/positions?search=engineer'
 ```
 
 ### Writing expenses back to SAP
@@ -129,8 +134,9 @@ SurrealDB table, with a direction (`inbound` / `outbound` / `both`) and
 an optional `pushFilter` (equality predicate that gates which Surreal
 records get written back to SAP — used to e.g. only post expenses with
 `Status=SUBMITTED`). Default mappings ship for `expenses` (both ways,
-with a `Status=SUBMITTED` push filter) and read-only inbound for
-customers / materials / vendors.
+with a `Status=SUBMITTED` push filter) and read-only inbound for the
+HR collections (`employees`, `addresses`, `orgunits`, `positions`,
+`jobs`, `absences`, `timesheets`, `payrollresults`, `wagetypes`).
 
 ```bash
 # point at your SurrealDB server

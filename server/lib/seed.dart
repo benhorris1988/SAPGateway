@@ -1,242 +1,209 @@
 import 'models.dart';
 
-// SAP-style seed: services, EntityTypes, EntitySets, and a few rows each.
-// Field names match SAP source-system codes (KUNNR, MATNR, VBELN, ...) the way
-// they would on a real ECC 6.0 NetWeaver Gateway service.
+// SAP ECC 6 seed data, HR + Expenses only. Field names match real DDIC
+// codes (PERNR, NACHN, VORNA, ORGEH, BELNR, ...) so that consumers
+// integrating against this mock get exactly the shape they'd see on a
+// real ECC 6 system.
 
 List<GatewayService> buildSeed() {
   return [
-    _zsalesSrv(),
-    _zmaterialSrv(),
-    _zvendorSrv(),
-    _zpurchSrv(),
-    _zpriceSrv(),
-    _zstockSrv(),
-    _zfinSrv(),
+    _zhrEmployeeSrv(),
+    _zhrOrgSrv(),
+    _zhrTimeSrv(),
+    _zhrPayrollSrv(),
     _zexpenseSrv(),
   ];
 }
 
-GatewayService _zsalesSrv() {
-  final customer = EntityType(
-    name: 'Customer',
-    keys: ['Kunnr'],
+GatewayService _zhrEmployeeSrv() {
+  final employee = EntityType(
+    name: 'Employee',
+    keys: ['Pernr'],
     properties: [
       Property(
-          name: 'Kunnr',
+          name: 'Pernr',
           edmType: 'Edm.String',
           nullable: false,
-          maxLength: 10,
-          label: 'Customer Number'),
+          maxLength: 8,
+          label: 'Personnel Number'),
       Property(
-          name: 'Name1', edmType: 'Edm.String', maxLength: 40, label: 'Name'),
+          name: 'Nachn',
+          edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'Last Name'),
       Property(
-          name: 'Land1', edmType: 'Edm.String', maxLength: 3, label: 'Country'),
+          name: 'Vorna',
+          edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'First Name'),
+      Property(name: 'Gbdat', edmType: 'Edm.DateTime', label: 'Date of Birth'),
+      Property(name: 'Begda', edmType: 'Edm.DateTime', label: 'Start Date'),
+      Property(name: 'Endda', edmType: 'Edm.DateTime', label: 'End Date'),
       Property(
-          name: 'Ktokd',
+          name: 'Werks',
           edmType: 'Edm.String',
           maxLength: 4,
-          label: 'Account Group'),
-      Property(name: 'Erdat', edmType: 'Edm.DateTime', label: 'Created On'),
+          label: 'Personnel Area'),
+      Property(
+          name: 'Persg',
+          edmType: 'Edm.String',
+          maxLength: 1,
+          label: 'Employee Group'),
+      Property(
+          name: 'Persk',
+          edmType: 'Edm.String',
+          maxLength: 2,
+          label: 'Employee Subgroup'),
     ],
   );
-  final salesOrder = EntityType(
-    name: 'SalesOrder',
-    keys: ['Vbeln'],
+  final address = EntityType(
+    name: 'Address',
+    keys: ['Pernr', 'Subty'],
     properties: [
       Property(
-          name: 'Vbeln',
+          name: 'Pernr',
           edmType: 'Edm.String',
           nullable: false,
-          maxLength: 10,
-          label: 'Sales Document'),
+          maxLength: 8,
+          label: 'Personnel Number'),
       Property(
-          name: 'Kunnr',
-          edmType: 'Edm.String',
-          maxLength: 10,
-          label: 'Sold-To'),
-      Property(name: 'Audat', edmType: 'Edm.DateTime', label: 'Document Date'),
-      Property(
-          name: 'Netwr',
-          edmType: 'Edm.Decimal',
-          precision: 15,
-          scale: 2,
-          label: 'Net Value'),
-      Property(
-          name: 'Waerk',
-          edmType: 'Edm.String',
-          maxLength: 5,
-          label: 'Currency'),
-    ],
-  );
-  final salesOrderItem = EntityType(
-    name: 'SalesOrderItem',
-    keys: ['Vbeln', 'Posnr'],
-    properties: [
-      Property(
-          name: 'Vbeln',
+          name: 'Subty',
           edmType: 'Edm.String',
           nullable: false,
+          maxLength: 4,
+          label: 'Address Type'),
+      Property(
+          name: 'Stras',
+          edmType: 'Edm.String',
+          maxLength: 60,
+          label: 'Street'),
+      Property(
+          name: 'Ort01',
+          edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'City'),
+      Property(
+          name: 'Pstlz',
+          edmType: 'Edm.String',
           maxLength: 10,
-          label: 'Sales Document'),
+          label: 'Postal Code'),
       Property(
-          name: 'Posnr',
-          edmType: 'Edm.String',
-          nullable: false,
-          maxLength: 6,
-          label: 'Item'),
-      Property(
-          name: 'Matnr',
-          edmType: 'Edm.String',
-          maxLength: 18,
-          label: 'Material'),
-      Property(
-          name: 'Kwmeng',
-          edmType: 'Edm.Decimal',
-          precision: 13,
-          scale: 3,
-          label: 'Order Quantity'),
-      Property(
-          name: 'Vrkme',
+          name: 'Land1',
           edmType: 'Edm.String',
           maxLength: 3,
-          label: 'Sales Unit'),
+          label: 'Country'),
     ],
   );
-
   return GatewayService(
-    name: 'ZSALES_SRV',
-    namespace: 'ZSALES_SRV',
-    description: 'Sales Master & Transactions',
-    entityTypes: [customer, salesOrder, salesOrderItem],
+    name: 'ZHR_EMPLOYEE_SRV',
+    namespace: 'ZHR_EMPLOYEE_SRV',
+    description: 'HR Master Data — Employees & Addresses (PA0001/PA0006)',
+    entityTypes: [employee, address],
     entitySets: [
       EntitySet(
-        name: 'CustomerSet',
-        entityTypeName: 'Customer',
+        name: 'EmployeeSet',
+        entityTypeName: 'Employee',
         rows: [
           {
-            'Kunnr': '0000001000',
-            'Name1': 'ACME Corp',
-            'Land1': 'US',
-            'Ktokd': 'KUNA',
-            'Erdat': '2018-04-12T00:00:00'
+            'Pernr': '00010001',
+            'Nachn': 'Schmidt',
+            'Vorna': 'Anna',
+            'Gbdat': '1985-03-14T00:00:00',
+            'Begda': '2010-09-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+            'Werks': '1000',
+            'Persg': '1',
+            'Persk': 'U1',
           },
           {
-            'Kunnr': '0000001001',
-            'Name1': 'Globex Ltd',
-            'Land1': 'GB',
-            'Ktokd': 'KUNA',
-            'Erdat': '2019-06-22T00:00:00'
+            'Pernr': '00010002',
+            'Nachn': 'Müller',
+            'Vorna': 'Hans',
+            'Gbdat': '1978-11-22T00:00:00',
+            'Begda': '2005-02-15T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+            'Werks': '1000',
+            'Persg': '1',
+            'Persk': 'U2',
           },
           {
-            'Kunnr': '0000001002',
-            'Name1': 'Initech',
-            'Land1': 'US',
-            'Ktokd': 'KUNA',
-            'Erdat': '2020-01-08T00:00:00'
+            'Pernr': '00010003',
+            'Nachn': 'Khan',
+            'Vorna': 'Priya',
+            'Gbdat': '1990-07-09T00:00:00',
+            'Begda': '2018-06-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+            'Werks': '2000',
+            'Persg': '1',
+            'Persk': 'U1',
           },
           {
-            'Kunnr': '0000001003',
-            'Name1': 'Soylent GmbH',
+            'Pernr': '00010004',
+            'Nachn': 'Brown',
+            'Vorna': 'Michael',
+            'Gbdat': '1982-01-30T00:00:00',
+            'Begda': '2012-04-10T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+            'Werks': '3000',
+            'Persg': '1',
+            'Persk': 'U3',
+          },
+          {
+            'Pernr': '00010005',
+            'Nachn': 'Tanaka',
+            'Vorna': 'Yui',
+            'Gbdat': '1995-05-18T00:00:00',
+            'Begda': '2021-10-04T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+            'Werks': '4000',
+            'Persg': '1',
+            'Persk': 'U1',
+          },
+        ],
+      ),
+      EntitySet(
+        name: 'AddressSet',
+        entityTypeName: 'Address',
+        rows: [
+          {
+            'Pernr': '00010001',
+            'Subty': '0001',
+            'Stras': 'Maximilianstraße 12',
+            'Ort01': 'München',
+            'Pstlz': '80539',
             'Land1': 'DE',
-            'Ktokd': 'KUNB',
-            'Erdat': '2021-11-30T00:00:00'
           },
           {
-            'Kunnr': '0000001004',
-            'Name1': 'Umbrella SA',
-            'Land1': 'FR',
-            'Ktokd': 'KUNA',
-            'Erdat': '2022-03-14T00:00:00'
+            'Pernr': '00010002',
+            'Subty': '0001',
+            'Stras': 'Kurfürstendamm 188',
+            'Ort01': 'Berlin',
+            'Pstlz': '10707',
+            'Land1': 'DE',
           },
           {
-            'Kunnr': '0000001005',
-            'Name1': 'Hooli Asia Pte Ltd',
-            'Land1': 'SG',
-            'Ktokd': 'KUNA',
-            'Erdat': '2023-08-01T00:00:00'
-          },
-        ],
-      ),
-      EntitySet(
-        name: 'SalesOrderSet',
-        entityTypeName: 'SalesOrder',
-        rows: [
-          {
-            'Vbeln': '0000010001',
-            'Kunnr': '0000001000',
-            'Audat': '2026-05-10T00:00:00',
-            'Netwr': '12450.00',
-            'Waerk': 'USD'
+            'Pernr': '00010003',
+            'Subty': '0001',
+            'Stras': '221B Baker Street',
+            'Ort01': 'London',
+            'Pstlz': 'NW1 6XE',
+            'Land1': 'GB',
           },
           {
-            'Vbeln': '0000010002',
-            'Kunnr': '0000001001',
-            'Audat': '2026-05-11T00:00:00',
-            'Netwr': '8800.50',
-            'Waerk': 'GBP'
+            'Pernr': '00010004',
+            'Subty': '0001',
+            'Stras': '350 5th Avenue',
+            'Ort01': 'New York',
+            'Pstlz': '10118',
+            'Land1': 'US',
           },
           {
-            'Vbeln': '0000010003',
-            'Kunnr': '0000001003',
-            'Audat': '2026-05-12T00:00:00',
-            'Netwr': '21000.00',
-            'Waerk': 'EUR'
-          },
-          {
-            'Vbeln': '0000010004',
-            'Kunnr': '0000001002',
-            'Audat': '2026-05-13T00:00:00',
-            'Netwr': '450.00',
-            'Waerk': 'USD'
-          },
-        ],
-      ),
-      EntitySet(
-        name: 'SalesOrderItemSet',
-        entityTypeName: 'SalesOrderItem',
-        rows: [
-          {
-            'Vbeln': '0000010001',
-            'Posnr': '000010',
-            'Matnr': 'M-0001',
-            'Kwmeng': '5.000',
-            'Vrkme': 'EA'
-          },
-          {
-            'Vbeln': '0000010001',
-            'Posnr': '000020',
-            'Matnr': 'M-0002',
-            'Kwmeng': '2.000',
-            'Vrkme': 'EA'
-          },
-          {
-            'Vbeln': '0000010002',
-            'Posnr': '000010',
-            'Matnr': 'M-0003',
-            'Kwmeng': '10.000',
-            'Vrkme': 'EA'
-          },
-          {
-            'Vbeln': '0000010003',
-            'Posnr': '000010',
-            'Matnr': 'M-0001',
-            'Kwmeng': '50.000',
-            'Vrkme': 'EA'
-          },
-          {
-            'Vbeln': '0000010003',
-            'Posnr': '000020',
-            'Matnr': 'M-0004',
-            'Kwmeng': '12.000',
-            'Vrkme': 'EA'
-          },
-          {
-            'Vbeln': '0000010004',
-            'Posnr': '000010',
-            'Matnr': 'M-0002',
-            'Kwmeng': '1.000',
-            'Vrkme': 'EA'
+            'Pernr': '00010005',
+            'Subty': '0001',
+            'Stras': '1-1-2 Oshiage',
+            'Ort01': 'Tokyo',
+            'Pstlz': '131-0045',
+            'Land1': 'JP',
           },
         ],
       ),
@@ -244,83 +211,319 @@ GatewayService _zsalesSrv() {
   );
 }
 
-GatewayService _zmaterialSrv() {
-  final material = EntityType(
-    name: 'Material',
-    keys: ['Matnr'],
+GatewayService _zhrOrgSrv() {
+  final orgUnit = EntityType(
+    name: 'OrgUnit',
+    keys: ['Orgeh'],
     properties: [
       Property(
-          name: 'Matnr',
+          name: 'Orgeh',
           edmType: 'Edm.String',
           nullable: false,
-          maxLength: 18,
-          label: 'Material Number'),
+          maxLength: 8,
+          label: 'Organisational Unit'),
       Property(
-          name: 'Maktx',
+          name: 'Orgtx',
           edmType: 'Edm.String',
           maxLength: 40,
           label: 'Description'),
       Property(
-          name: 'Matkl',
+          name: 'Plvar',
           edmType: 'Edm.String',
-          maxLength: 9,
-          label: 'Material Group'),
+          maxLength: 2,
+          label: 'Plan Version'),
+      Property(name: 'Begda', edmType: 'Edm.DateTime', label: 'Start Date'),
+      Property(name: 'Endda', edmType: 'Edm.DateTime', label: 'End Date'),
+    ],
+  );
+  final position = EntityType(
+    name: 'Position',
+    keys: ['Plans'],
+    properties: [
       Property(
-          name: 'Meins',
+          name: 'Plans',
           edmType: 'Edm.String',
-          maxLength: 3,
-          label: 'Base UoM'),
+          nullable: false,
+          maxLength: 8,
+          label: 'Position'),
       Property(
-          name: 'Mtart',
+          name: 'Plstx',
           edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'Description'),
+      Property(
+          name: 'Orgeh',
+          edmType: 'Edm.String',
+          maxLength: 8,
+          label: 'Organisational Unit'),
+      Property(
+          name: 'Stell',
+          edmType: 'Edm.String',
+          maxLength: 8,
+          label: 'Job'),
+      Property(name: 'Begda', edmType: 'Edm.DateTime', label: 'Start Date'),
+      Property(name: 'Endda', edmType: 'Edm.DateTime', label: 'End Date'),
+    ],
+  );
+  final job = EntityType(
+    name: 'Job',
+    keys: ['Stell'],
+    properties: [
+      Property(
+          name: 'Stell',
+          edmType: 'Edm.String',
+          nullable: false,
+          maxLength: 8,
+          label: 'Job'),
+      Property(
+          name: 'Stltx',
+          edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'Description'),
+      Property(name: 'Begda', edmType: 'Edm.DateTime', label: 'Start Date'),
+      Property(name: 'Endda', edmType: 'Edm.DateTime', label: 'End Date'),
+    ],
+  );
+  return GatewayService(
+    name: 'ZHR_ORG_SRV',
+    namespace: 'ZHR_ORG_SRV',
+    description: 'HR Organisational Management — OrgUnits, Positions, Jobs',
+    entityTypes: [orgUnit, position, job],
+    entitySets: [
+      EntitySet(
+        name: 'OrgUnitSet',
+        entityTypeName: 'OrgUnit',
+        rows: [
+          {
+            'Orgeh': '50000001',
+            'Orgtx': 'Headquarters',
+            'Plvar': '01',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Orgeh': '50000010',
+            'Orgtx': 'Finance & Controlling',
+            'Plvar': '01',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Orgeh': '50000020',
+            'Orgtx': 'IT Services',
+            'Plvar': '01',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Orgeh': '50000030',
+            'Orgtx': 'Sales EMEA',
+            'Plvar': '01',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+        ],
+      ),
+      EntitySet(
+        name: 'PositionSet',
+        entityTypeName: 'Position',
+        rows: [
+          {
+            'Plans': '60000001',
+            'Plstx': 'Chief Financial Officer',
+            'Orgeh': '50000010',
+            'Stell': '70000001',
+            'Begda': '2010-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Plans': '60000002',
+            'Plstx': 'Senior Accountant',
+            'Orgeh': '50000010',
+            'Stell': '70000002',
+            'Begda': '2010-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Plans': '60000010',
+            'Plstx': 'Software Engineer',
+            'Orgeh': '50000020',
+            'Stell': '70000010',
+            'Begda': '2012-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Plans': '60000020',
+            'Plstx': 'Sales Manager',
+            'Orgeh': '50000030',
+            'Stell': '70000020',
+            'Begda': '2008-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+        ],
+      ),
+      EntitySet(
+        name: 'JobSet',
+        entityTypeName: 'Job',
+        rows: [
+          {
+            'Stell': '70000001',
+            'Stltx': 'Executive',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Stell': '70000002',
+            'Stltx': 'Accountant',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Stell': '70000010',
+            'Stltx': 'Engineer',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+          {
+            'Stell': '70000020',
+            'Stltx': 'Sales Professional',
+            'Begda': '2000-01-01T00:00:00',
+            'Endda': '9999-12-31T00:00:00',
+          },
+        ],
+      ),
+    ],
+  );
+}
+
+GatewayService _zhrTimeSrv() {
+  final absence = EntityType(
+    name: 'Absence',
+    keys: ['Pernr', 'Begda', 'Awart'],
+    properties: [
+      Property(
+          name: 'Pernr',
+          edmType: 'Edm.String',
+          nullable: false,
+          maxLength: 8,
+          label: 'Personnel Number'),
+      Property(
+          name: 'Awart',
+          edmType: 'Edm.String',
+          nullable: false,
           maxLength: 4,
-          label: 'Material Type'),
+          label: 'Absence Type'),
+      Property(
+          name: 'Begda',
+          edmType: 'Edm.DateTime',
+          nullable: false,
+          label: 'Start Date'),
+      Property(name: 'Endda', edmType: 'Edm.DateTime', label: 'End Date'),
+      Property(
+          name: 'Abwtg',
+          edmType: 'Edm.Decimal',
+          precision: 6,
+          scale: 2,
+          label: 'Absence Days'),
+    ],
+  );
+  final timesheet = EntityType(
+    name: 'Timesheet',
+    keys: ['Pernr', 'Workd'],
+    properties: [
+      Property(
+          name: 'Pernr',
+          edmType: 'Edm.String',
+          nullable: false,
+          maxLength: 8,
+          label: 'Personnel Number'),
+      Property(
+          name: 'Workd',
+          edmType: 'Edm.DateTime',
+          nullable: false,
+          label: 'Work Date'),
+      Property(
+          name: 'Stdaz',
+          edmType: 'Edm.Decimal',
+          precision: 5,
+          scale: 2,
+          label: 'Hours Worked'),
+      Property(
+          name: 'Lstar',
+          edmType: 'Edm.String',
+          maxLength: 6,
+          label: 'Activity Type'),
+      Property(
+          name: 'Kostl',
+          edmType: 'Edm.String',
+          maxLength: 10,
+          label: 'Cost Center'),
     ],
   );
   return GatewayService(
-    name: 'ZMATERIAL_SRV',
-    namespace: 'ZMATERIAL_SRV',
-    description: 'Material Master',
-    entityTypes: [material],
+    name: 'ZHR_TIME_SRV',
+    namespace: 'ZHR_TIME_SRV',
+    description: 'HR Time Management — Absences & Timesheets',
+    entityTypes: [absence, timesheet],
     entitySets: [
       EntitySet(
-        name: 'MaterialSet',
-        entityTypeName: 'Material',
+        name: 'AbsenceSet',
+        entityTypeName: 'Absence',
         rows: [
           {
-            'Matnr': 'M-0001',
-            'Maktx': 'Steel Pipe DN50',
-            'Matkl': '0010',
-            'Meins': 'M',
-            'Mtart': 'ROH'
+            'Pernr': '00010001',
+            'Awart': '0100',
+            'Begda': '2026-03-09T00:00:00',
+            'Endda': '2026-03-13T00:00:00',
+            'Abwtg': '5.00',
           },
           {
-            'Matnr': 'M-0002',
-            'Maktx': 'Steel Pipe DN100',
-            'Matkl': '0010',
-            'Meins': 'M',
-            'Mtart': 'ROH'
+            'Pernr': '00010002',
+            'Awart': '0200',
+            'Begda': '2026-04-20T00:00:00',
+            'Endda': '2026-04-22T00:00:00',
+            'Abwtg': '3.00',
           },
           {
-            'Matnr': 'M-0003',
-            'Maktx': 'Valve Type A',
-            'Matkl': '0020',
-            'Meins': 'EA',
-            'Mtart': 'HALB'
+            'Pernr': '00010003',
+            'Awart': '0100',
+            'Begda': '2026-05-04T00:00:00',
+            'Endda': '2026-05-15T00:00:00',
+            'Abwtg': '10.00',
+          },
+        ],
+      ),
+      EntitySet(
+        name: 'TimesheetSet',
+        entityTypeName: 'Timesheet',
+        rows: [
+          {
+            'Pernr': '00010001',
+            'Workd': '2026-05-18T00:00:00',
+            'Stdaz': '8.00',
+            'Lstar': 'PROJ01',
+            'Kostl': '0000010000',
           },
           {
-            'Matnr': 'M-0004',
-            'Maktx': 'Gasket Set',
-            'Matkl': '0020',
-            'Meins': 'EA',
-            'Mtart': 'HALB'
+            'Pernr': '00010001',
+            'Workd': '2026-05-19T00:00:00',
+            'Stdaz': '8.00',
+            'Lstar': 'PROJ01',
+            'Kostl': '0000010000',
           },
           {
-            'Matnr': 'M-0005',
-            'Maktx': 'Bracket Assembly',
-            'Matkl': '0030',
-            'Meins': 'EA',
-            'Mtart': 'FERT'
+            'Pernr': '00010002',
+            'Workd': '2026-05-18T00:00:00',
+            'Stdaz': '7.50',
+            'Lstar': 'PROJ02',
+            'Kostl': '0000020000',
+          },
+          {
+            'Pernr': '00010004',
+            'Workd': '2026-05-19T00:00:00',
+            'Stdaz': '8.00',
+            'Lstar': 'PROJ03',
+            'Kostl': '0000030000',
           },
         ],
       ),
@@ -328,73 +531,39 @@ GatewayService _zmaterialSrv() {
   );
 }
 
-GatewayService _zvendorSrv() {
-  final vendor = EntityType(
-    name: 'Vendor',
-    keys: ['Lifnr'],
+GatewayService _zhrPayrollSrv() {
+  final payrollResult = EntityType(
+    name: 'PayrollResult',
+    keys: ['Pernr', 'Seqnr'],
     properties: [
       Property(
-          name: 'Lifnr',
+          name: 'Pernr',
           edmType: 'Edm.String',
           nullable: false,
-          maxLength: 10,
-          label: 'Vendor Number'),
+          maxLength: 8,
+          label: 'Personnel Number'),
       Property(
-          name: 'Name1', edmType: 'Edm.String', maxLength: 40, label: 'Name'),
-      Property(
-          name: 'Land1', edmType: 'Edm.String', maxLength: 3, label: 'Country'),
-      Property(
-          name: 'Stcd1', edmType: 'Edm.String', maxLength: 16, label: 'Tax ID'),
-    ],
-  );
-  return GatewayService(
-    name: 'ZVENDOR_SRV',
-    namespace: 'ZVENDOR_SRV',
-    description: 'Vendor Master',
-    entityTypes: [vendor],
-    entitySets: [
-      EntitySet(
-        name: 'VendorSet',
-        entityTypeName: 'Vendor',
-        rows: [
-          {
-            'Lifnr': '0000100001',
-            'Name1': 'Tyrell Supplies',
-            'Land1': 'US',
-            'Stcd1': '12-3456789'
-          },
-          {
-            'Lifnr': '0000100002',
-            'Name1': 'Nakatomi Parts',
-            'Land1': 'JP',
-            'Stcd1': '7000012345678'
-          },
-          {
-            'Lifnr': '0000100003',
-            'Name1': 'Wayland Logistik',
-            'Land1': 'DE',
-            'Stcd1': 'DE123456789'
-          },
-        ],
-      ),
-    ],
-  );
-}
-
-GatewayService _zpurchSrv() {
-  final po = EntityType(
-    name: 'PurchaseOrder',
-    keys: ['Ebeln'],
-    properties: [
-      Property(
-          name: 'Ebeln',
+          name: 'Seqnr',
           edmType: 'Edm.String',
           nullable: false,
-          maxLength: 10,
-          label: 'PO Number'),
+          maxLength: 5,
+          label: 'Sequence Number'),
       Property(
-          name: 'Lifnr', edmType: 'Edm.String', maxLength: 10, label: 'Vendor'),
-      Property(name: 'Bedat', edmType: 'Edm.DateTime', label: 'PO Date'),
+          name: 'Fpper',
+          edmType: 'Edm.String',
+          maxLength: 6,
+          label: 'For-Period (YYYYMM)'),
+      Property(
+          name: 'Payty',
+          edmType: 'Edm.String',
+          maxLength: 1,
+          label: 'Payroll Type'),
+      Property(
+          name: 'Betrg',
+          edmType: 'Edm.Decimal',
+          precision: 13,
+          scale: 2,
+          label: 'Amount'),
       Property(
           name: 'Waers',
           edmType: 'Edm.String',
@@ -402,157 +571,76 @@ GatewayService _zpurchSrv() {
           label: 'Currency'),
     ],
   );
-  return GatewayService(
-    name: 'ZPURCH_SRV',
-    namespace: 'ZPURCH_SRV',
-    description: 'Purchase Orders',
-    entityTypes: [po],
-    entitySets: [
-      EntitySet(
-        name: 'PurchaseOrderSet',
-        entityTypeName: 'PurchaseOrder',
-        rows: [
-          {
-            'Ebeln': '4500000001',
-            'Lifnr': '0000100001',
-            'Bedat': '2026-04-30T00:00:00',
-            'Waers': 'USD'
-          },
-          {
-            'Ebeln': '4500000002',
-            'Lifnr': '0000100002',
-            'Bedat': '2026-05-02T00:00:00',
-            'Waers': 'JPY'
-          },
-          {
-            'Ebeln': '4500000003',
-            'Lifnr': '0000100003',
-            'Bedat': '2026-05-04T00:00:00',
-            'Waers': 'EUR'
-          },
-        ],
-      ),
-    ],
-  );
-}
-
-GatewayService _zpriceSrv() {
-  final cond = EntityType(
-    name: 'PricingCondition',
-    keys: ['Knumh'],
+  final wageType = EntityType(
+    name: 'WageType',
+    keys: ['Lgart'],
     properties: [
       Property(
-          name: 'Knumh',
-          edmType: 'Edm.String',
-          nullable: false,
-          maxLength: 10,
-          label: 'Condition Record No.'),
-      Property(
-          name: 'Kschl',
-          edmType: 'Edm.String',
-          maxLength: 4,
-          label: 'Condition Type'),
-      Property(name: 'Datab', edmType: 'Edm.DateTime', label: 'Valid From'),
-      Property(name: 'Datbi', edmType: 'Edm.DateTime', label: 'Valid To'),
-      Property(
-          name: 'Kbetr',
-          edmType: 'Edm.Decimal',
-          precision: 11,
-          scale: 2,
-          label: 'Rate'),
-    ],
-  );
-  return GatewayService(
-    name: 'ZPRICE_SRV',
-    namespace: 'ZPRICE_SRV',
-    description: 'Pricing Conditions',
-    entityTypes: [cond],
-    entitySets: [
-      EntitySet(
-        name: 'ConditionSet',
-        entityTypeName: 'PricingCondition',
-        rows: [
-          {
-            'Knumh': '0000000001',
-            'Kschl': 'PR00',
-            'Datab': '2026-01-01T00:00:00',
-            'Datbi': '2026-12-31T00:00:00',
-            'Kbetr': '199.00'
-          },
-          {
-            'Knumh': '0000000002',
-            'Kschl': 'K007',
-            'Datab': '2026-01-01T00:00:00',
-            'Datbi': '2026-06-30T00:00:00',
-            'Kbetr': '-5.00'
-          },
-        ],
-      ),
-    ],
-  );
-}
-
-GatewayService _zstockSrv() {
-  final stock = EntityType(
-    name: 'Stock',
-    keys: ['Matnr', 'Werks'],
-    properties: [
-      Property(
-          name: 'Matnr',
-          edmType: 'Edm.String',
-          nullable: false,
-          maxLength: 18,
-          label: 'Material'),
-      Property(
-          name: 'Werks',
+          name: 'Lgart',
           edmType: 'Edm.String',
           nullable: false,
           maxLength: 4,
-          label: 'Plant'),
+          label: 'Wage Type'),
       Property(
-          name: 'Labst',
-          edmType: 'Edm.Decimal',
-          precision: 13,
-          scale: 3,
-          label: 'Unrestricted Stock'),
-      Property(
-          name: 'Meins', edmType: 'Edm.String', maxLength: 3, label: 'UoM'),
+          name: 'Lgtxt',
+          edmType: 'Edm.String',
+          maxLength: 40,
+          label: 'Description'),
     ],
   );
   return GatewayService(
-    name: 'ZSTOCK_SRV',
-    namespace: 'ZSTOCK_SRV',
-    description: 'Inventory',
-    entityTypes: [stock],
+    name: 'ZHR_PAYROLL_SRV',
+    namespace: 'ZHR_PAYROLL_SRV',
+    description: 'HR Payroll — Results & Wage Types',
+    entityTypes: [payrollResult, wageType],
     entitySets: [
       EntitySet(
-        name: 'StockSet',
-        entityTypeName: 'Stock',
+        name: 'PayrollResultSet',
+        entityTypeName: 'PayrollResult',
         rows: [
           {
-            'Matnr': 'M-0001',
-            'Werks': '1000',
-            'Labst': '1200.000',
-            'Meins': 'M'
+            'Pernr': '00010001',
+            'Seqnr': '00001',
+            'Fpper': '202604',
+            'Payty': 'A',
+            'Betrg': '5200.00',
+            'Waers': 'EUR',
           },
           {
-            'Matnr': 'M-0002',
-            'Werks': '1000',
-            'Labst': '450.000',
-            'Meins': 'M'
+            'Pernr': '00010002',
+            'Seqnr': '00001',
+            'Fpper': '202604',
+            'Payty': 'A',
+            'Betrg': '6100.00',
+            'Waers': 'EUR',
           },
           {
-            'Matnr': 'M-0003',
-            'Werks': '1000',
-            'Labst': '80.000',
-            'Meins': 'EA'
+            'Pernr': '00010003',
+            'Seqnr': '00001',
+            'Fpper': '202604',
+            'Payty': 'A',
+            'Betrg': '4700.00',
+            'Waers': 'GBP',
           },
           {
-            'Matnr': 'M-0004',
-            'Werks': '2000',
-            'Labst': '300.000',
-            'Meins': 'EA'
+            'Pernr': '00010004',
+            'Seqnr': '00001',
+            'Fpper': '202604',
+            'Payty': 'A',
+            'Betrg': '7200.00',
+            'Waers': 'USD',
           },
+        ],
+      ),
+      EntitySet(
+        name: 'WageTypeSet',
+        entityTypeName: 'WageType',
+        rows: [
+          {'Lgart': '1000', 'Lgtxt': 'Base Salary'},
+          {'Lgart': '1100', 'Lgtxt': 'Overtime'},
+          {'Lgart': '1200', 'Lgtxt': 'Bonus'},
+          {'Lgart': '2000', 'Lgtxt': 'Income Tax'},
+          {'Lgart': '2100', 'Lgtxt': 'Social Security'},
         ],
       ),
     ],
@@ -574,7 +662,7 @@ GatewayService _zexpenseSrv() {
           name: 'Pernr',
           edmType: 'Edm.String',
           maxLength: 8,
-          label: 'Employee Number'),
+          label: 'Personnel Number'),
       Property(name: 'Bldat', edmType: 'Edm.DateTime', label: 'Document Date'),
       Property(
           name: 'Wrbtr',
@@ -652,80 +740,6 @@ GatewayService _zexpenseSrv() {
             'Sgtxt': 'Hotel - NYC offsite',
             'Status': 'SUBMITTED',
           },
-        ],
-      ),
-    ],
-  );
-}
-
-GatewayService _zfinSrv() {
-  final glAccount = EntityType(
-    name: 'GLAccount',
-    keys: ['Saknr'],
-    properties: [
-      Property(
-          name: 'Saknr',
-          edmType: 'Edm.String',
-          nullable: false,
-          maxLength: 10,
-          label: 'GL Account'),
-      Property(
-          name: 'Txt50',
-          edmType: 'Edm.String',
-          maxLength: 50,
-          label: 'Description'),
-      Property(
-          name: 'Mwskz',
-          edmType: 'Edm.String',
-          maxLength: 2,
-          label: 'Tax Code'),
-    ],
-  );
-  final costCenter = EntityType(
-    name: 'CostCenter',
-    keys: ['Kostl'],
-    properties: [
-      Property(
-          name: 'Kostl',
-          edmType: 'Edm.String',
-          nullable: false,
-          maxLength: 10,
-          label: 'Cost Center'),
-      Property(
-          name: 'Ktext',
-          edmType: 'Edm.String',
-          maxLength: 40,
-          label: 'Description'),
-      Property(
-          name: 'Bukrs',
-          edmType: 'Edm.String',
-          maxLength: 4,
-          label: 'Company Code'),
-    ],
-  );
-  return GatewayService(
-    name: 'ZFIN_SRV',
-    namespace: 'ZFIN_SRV',
-    description: 'Finance Master',
-    entityTypes: [glAccount, costCenter],
-    entitySets: [
-      EntitySet(
-        name: 'GLAccountSet',
-        entityTypeName: 'GLAccount',
-        rows: [
-          {'Saknr': '0000400000', 'Txt50': 'Revenue Domestic', 'Mwskz': 'A1'},
-          {'Saknr': '0000400100', 'Txt50': 'Revenue Export', 'Mwskz': 'A0'},
-          {'Saknr': '0000500000', 'Txt50': 'Cost of Goods Sold', 'Mwskz': ''},
-          {'Saknr': '0000800000', 'Txt50': 'Bank Cash USD', 'Mwskz': ''},
-        ],
-      ),
-      EntitySet(
-        name: 'CostCenterSet',
-        entityTypeName: 'CostCenter',
-        rows: [
-          {'Kostl': '0000010000', 'Ktext': 'Headquarters', 'Bukrs': '1000'},
-          {'Kostl': '0000020000', 'Ktext': 'Plant Munich', 'Bukrs': '1000'},
-          {'Kostl': '0000030000', 'Ktext': 'Sales NA', 'Bukrs': '2000'},
         ],
       ),
     ],

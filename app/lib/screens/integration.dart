@@ -741,7 +741,7 @@ class _MappingEditorState extends State<_MappingEditor> {
               enabled: !editing,
               decoration: const InputDecoration(
                 labelText: 'SAP collection',
-                helperText: 'e.g. expenses, customers, materials',
+                helperText: 'e.g. expenses, employees, absences',
               ),
             ),
             const SizedBox(height: 12),

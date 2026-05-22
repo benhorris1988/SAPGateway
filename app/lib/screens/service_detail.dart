@@ -240,7 +240,7 @@ class _NewSetDialogState extends State<_NewSetDialog> {
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'EntitySet name',
-                hintText: 'CustomerSet',
+                hintText: 'EmployeeSet',
                 border: OutlineInputBorder(),
               ),
             ),

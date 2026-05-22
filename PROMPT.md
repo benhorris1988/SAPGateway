@@ -95,9 +95,9 @@ current branch from this alone.
 >    ~5000 with FIFO trim. Persist connection + mappings to
 >    `data/integration.json`. Seed default mappings to match the agreed
 >    scope: `expenses` bidirectional with push filter `Status=SUBMITTED`,
->    plus read-only inbound (`inbound`) for HR collections —
->    `employees`, `orgunits`, `positions`, `absences`, `timesheets` —
->    and the supporting ECC reads (`customers`/`materials`/`vendors`).
+>    plus read-only inbound (`inbound`) for the HR collections —
+>    `employees`, `addresses`, `orgunits`, `positions`, `jobs`,
+>    `absences`, `timesheets`, `payrollresults`, `wagetypes`.
 >
 >    The SurrealDB client should use `dart:io` `HttpClient` (no http
 >    package), send `Surreal-NS`/`NS` and `Surreal-DB`/`DB` headers,
@@ -136,15 +136,14 @@ current branch from this alone.
 >
 > ### Seed data (ECC 6 DDIC field codes)
 >
-> The agreed scope is **HR + Expenses inbound/outbound**, so the HR
-> services need to be present and convincing — these are what most
-> integrations actually pull. Other ECC areas are included as supporting
-> context (an HR-only mock looks suspiciously narrow).
+> The agreed scope is **HR + Expenses only**. Do not seed sales,
+> materials, vendors, purchasing, pricing, stock or finance — they are
+> out of scope for this integration and add noise.
 >
 > Use real ECC 6 DDIC field codes throughout — agents tend to default
 > to friendly English names; resist that.
 >
-> **HR space (priority)** — fields straight from PA/OM tables:
+> **HR space — fields straight from PA/OM tables:**
 > - `ZHR_EMPLOYEE_SRV` — Employee (PERNR/NACHN/VORNA/GBDAT/BEGDA/ENDDA/
 >   WERKS/PERSG/PERSK), Address (PERNR/SUBTY/STRAS/ORT01/PSTLZ/LAND1)
 > - `ZHR_ORG_SRV` — OrgUnit (ORGEH/ORGTX/PLVAR/BEGDA/ENDDA),
@@ -155,25 +154,14 @@ current branch from this alone.
 > - `ZHR_PAYROLL_SRV` — PayrollResult (PERNR/SEQNR/FPPER/PAYTY/BETRG/WAERS),
 >   WageType (LGART/LGTXT)
 >
-> **Expenses (priority — outbound write target):**
+> **Expenses — the outbound write target:**
 > - `ZEXPENSE_SRV` — Expense
 >   (BELNR/PERNR/BLDAT/WRBTR/WAERS/KOSTL/SAKNR/SGTXT/Status)
 >
-> **Supporting ECC services:**
-> - `ZSALES_SRV` — Customer (KUNNR/NAME1/LAND1/KTOKD/ERDAT),
->   SalesOrder (VBELN/KUNNR/AUDAT/NETWR/WAERK), SalesOrderItem
->   (VBELN/POSNR/MATNR/KWMENG/VRKME — composite key)
-> - `ZMATERIAL_SRV` — Material (MATNR/MAKTX/MATKL/MEINS/MTART)
-> - `ZVENDOR_SRV` — Vendor (LIFNR/NAME1/LAND1/STCD1)
-> - `ZPURCH_SRV` — PurchaseOrder (EBELN/LIFNR/BEDAT/WAERS)
-> - `ZPRICE_SRV` — PricingCondition (KNUMH/KSCHL/DATAB/DATBI/KBETR)
-> - `ZSTOCK_SRV` — Stock (MATNR/WERKS/LABST/MEINS — composite key)
-> - `ZFIN_SRV` — GLAccount (SAKNR/TXT50/MWSKZ), CostCenter
->   (KOSTL/KTEXT/BUKRS)
->
 > A few representative rows per set (3–6), with real-looking SAP
 > formatting: zero-padded keys (`0000001000`), uppercase country codes,
-> stringified decimals (`"12450.00"`), ISO datetimes (`2026-05-10T00:00:00`).
+> stringified decimals (`"12450.00"`), ISO datetimes
+> (`2026-05-10T00:00:00`).
 >
 > ### Flutter app (web only — Dart SDK ^3.4.0, Flutter ≥3.22.0)
 >
