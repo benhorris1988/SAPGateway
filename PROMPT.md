@@ -11,13 +11,28 @@ current branch from this alone.
 
 ## Prompt
 
-> Build a **mock SAP NetWeaver Gateway** with a **Flutter admin app**, a
-> **REST integration layer** that mirrors data into an external
-> **SurrealDB**, and a **persistent audit log**. The shape of the SAP data
-> should look like a real SAP ECC/S/4HANA system: services named
-> `Z..._SRV`, EntityTypes with SAP field codes (`KUNNR`, `MATNR`, `VBELN`,
-> `LIFNR`, `EBELN`, `PERNR`, `BELNR`, `WRBTR`, `WAERS`, `KOSTL`, `SAKNR`
-> etc.), EDM types (`Edm.String`, `Edm.Decimal`, `Edm.DateTime`, ...).
+> Build a **mock SAP ECC 6 REST API** with a **Flutter admin app**, a
+> **bidirectional integration layer** that mirrors data into an external
+> **SurrealDB**, and a **persistent audit log**.
+>
+> The real target system is **SAP ECC 6**. It is *not* assumed to sit
+> behind SAP NetWeaver Gateway — the agreed integration contract is
+> **REST APIs, inbound and outbound**, where:
+>
+> - **inbound** = reading data *from* SAP into the rest of the world
+>   (customers, materials, vendors, HR/employees, etc.)
+> - **outbound** = writing data *to* SAP (primarily expenses, but the
+>   shape should generalise)
+>
+> The data and field names must look like real ECC 6: services named
+> `Z..._SRV`, entity types using SAP DDIC field codes (`KUNNR`, `MATNR`,
+> `VBELN`, `LIFNR`, `EBELN`, `PERNR`, `BELNR`, `WRBTR`, `WAERS`,
+> `KOSTL`, `SAKNR`, ...), and SAP-style formatting (zero-padded keys
+> like `0000001000`, uppercase country codes, stringified decimals,
+> ISO datetimes). Use OData-style EDM type tags
+> (`Edm.String`/`Edm.Decimal`/`Edm.DateTime`/...) for the schema metadata
+> since they're a clean, well-known way to describe ECC field types
+> even if the wire format is plain REST/JSON.
 >
 > ### Repo layout
 > ```
@@ -30,22 +45,15 @@ current branch from this alone.
 >
 > ### Server (Dart, package `shelf` + `shelf_router`, no other deps)
 >
-> Expose four mounts under a CORS-enabled pipeline with request logging:
+> Expose the following mounts under a CORS-enabled pipeline with request
+> logging. REST is the primary surface; OData is an optional compatibility
+> layer only because some downstream SAP tooling assumes it, and can be
+> skipped.
 >
-> 1. **OData v2** at `/sap/opu/odata/sap/` — service catalog, per-service
->    document, `$metadata` (EDMX), and EntitySet collections.
->    Implement query options: `$top`, `$skip`, `$orderby`, `$select`,
->    `$inlinecount=allpages`, `$format=json|xml`, and a `$filter` subset
->    (`eq`/`ne`/`gt`/`ge`/`lt`/`le`, `and`/`or`, parens, `substringof`,
->    `startswith`, `endswith`). Wrap rows in `{ d: { results: [...] } }`
->    with a `__metadata` block per row.
->    GET/POST/PUT/PATCH/MERGE/DELETE on EntitySets and keyed items
->    (`Set('key')` and `Set(Field1='a',Field2='b')`).
->
-> 2. **Clean REST** at `/api/v1/` over the same data:
->    - `GET /` discovery
+> 1. **REST** at `/api/v1/` — *the* contract:
+>    - `GET /` discovery (lists collections, entity types, row counts)
 >    - `GET /{collection}` list with `?limit&offset&sort&search` + any
->      other query param as equality filter; response shape
+>      other query param treated as an equality filter; response shape
 >      `{ data, total, limit, offset }`
 >    - `GET/PUT/PATCH/DELETE /{collection}/{id}`, `POST /{collection}`
 >    - Collection name = EntitySet name lowercased, trailing `Set`
@@ -53,6 +61,17 @@ current branch from this alone.
 >      `ExpenseSet` → `expenses`). Composite keys joined with commas.
 >    - Expose the collection-name → (EntitySet, EntityType) lookup as a
 >      public method so other handlers can reuse it.
+>
+> 2. **OData v2** at `/sap/opu/odata/sap/` (*optional / nice-to-have*) —
+>    same underlying data, OData v2 envelope. Include this only if it's
+>    cheap; the real target may or may not expose OData. If included:
+>    service catalog, per-service document, `$metadata` (EDMX), EntitySet
+>    collections, query options (`$top`/`$skip`/`$orderby`/`$select`/
+>    `$inlinecount=allpages`/`$format=json|xml` and a `$filter` subset:
+>    `eq`/`ne`/`gt`/`ge`/`lt`/`le`/`and`/`or`/parens/`substringof`/
+>    `startswith`/`endswith`). Wrap rows in `{ d: { results: [...] } }`
+>    with a `__metadata` block per row. Single-key and composite-key
+>    item URIs (`Set('key')` and `Set(F1='a',F2='b')`).
 >
 > 3. **Admin JSON API** at `/admin/` for schema + row CRUD that the
 >    Flutter app uses to manage services, entity types, properties
@@ -84,14 +103,37 @@ current branch from this alone.
 >    `dryRun` flag, rowsScanned/Created/Updated/Skipped/Failed,
 >    durationMs and (truncated) error excerpt. Cap retained events at
 >    ~5000 with FIFO trim. Persist connection + mappings to
->    `data/integration.json`. Seed default mappings: `expenses` (both
->    ways, push filter `Status=SUBMITTED`), and read-only inbound for
->    `customers`/`materials`/`vendors`.
+>    `data/integration.json`. Seed default mappings to match the agreed
+>    scope: `expenses` bidirectional with push filter `Status=SUBMITTED`,
+>    plus read-only inbound (`inbound`) for HR collections —
+>    `employees`, `orgunits`, `positions`, `absences`, `timesheets` —
+>    and the supporting ECC reads (`customers`/`materials`/`vendors`).
 >
 >    The SurrealDB client should use `dart:io` `HttpClient` (no http
 >    package), send `Surreal-NS`/`NS` and `Surreal-DB`/`DB` headers,
 >    Basic auth, and tolerate Surreal's statement envelope
 >    (`[{result, status}]`) on both read and write paths.
+>
+> ### Auth (TBD — leave pluggable)
+>
+> The auth scheme on the real ECC 6 REST endpoints is **not yet
+> agreed**. Don't hard-code one. Build the mock so that:
+>
+> - The REST + OData + Admin + Integration handlers all pass through a
+>   single shelf middleware (`authMiddleware`) that today is a no-op
+>   (allow all) but is the one place a future scheme drops in.
+> - The Flutter `GatewayApi` builds every request via a single
+>   `_authHeaders()` hook that today returns `{}` but is the one place
+>   credentials get attached.
+> - Settings has stub fields for "Auth mode" with `none` selected by
+>   default and `basic` / `oauth2-client-credentials` / `oauth2-saml-bearer`
+>   listed but disabled. Make it obvious where to wire them up.
+> - SurrealDB-side auth (for the integration layer's external calls) is
+>   separate and *is* implemented today (Basic auth + NS/DB headers).
+>   Don't conflate the two.
+>
+> The mock itself should remain runnable with no auth so the demo path
+> stays one command.
 >
 > ### Persistence
 > - Gateway state → `server/data/runtime.json`
@@ -102,9 +144,32 @@ current branch from this alone.
 > absent. A `--data` CLI flag overrides the path; the integration and
 > audit files live in the same directory.
 >
-> ### Seed data (SAP-style)
-> Eight services. Use real SAP field codes throughout — agents tend to
-> default to friendly English names; resist that.
+> ### Seed data (ECC 6 DDIC field codes)
+>
+> The agreed scope is **HR + Expenses inbound/outbound**, so the HR
+> services need to be present and convincing — these are what most
+> integrations actually pull. Other ECC areas are included as supporting
+> context (an HR-only mock looks suspiciously narrow).
+>
+> Use real ECC 6 DDIC field codes throughout — agents tend to default
+> to friendly English names; resist that.
+>
+> **HR space (priority)** — fields straight from PA/OM tables:
+> - `ZHR_EMPLOYEE_SRV` — Employee (PERNR/NACHN/VORNA/GBDAT/BEGDA/ENDDA/
+>   WERKS/PERSG/PERSK), Address (PERNR/SUBTY/STRAS/ORT01/PSTLZ/LAND1)
+> - `ZHR_ORG_SRV` — OrgUnit (ORGEH/ORGTX/PLVAR/BEGDA/ENDDA),
+>   Position (PLANS/PLSTX/ORGEH/STELL/BEGDA/ENDDA),
+>   Job (STELL/STLTX/BEGDA/ENDDA)
+> - `ZHR_TIME_SRV` — Absence (PERNR/AWART/BEGDA/ENDDA/ABWTG),
+>   Timesheet (PERNR/WORKD/STDAZ/LSTAR/KOSTL)
+> - `ZHR_PAYROLL_SRV` — PayrollResult (PERNR/SEQNR/FPPER/PAYTY/BETRG/WAERS),
+>   WageType (LGART/LGTXT)
+>
+> **Expenses (priority — outbound write target):**
+> - `ZEXPENSE_SRV` — Expense
+>   (BELNR/PERNR/BLDAT/WRBTR/WAERS/KOSTL/SAKNR/SGTXT/Status)
+>
+> **Supporting ECC services:**
 > - `ZSALES_SRV` — Customer (KUNNR/NAME1/LAND1/KTOKD/ERDAT),
 >   SalesOrder (VBELN/KUNNR/AUDAT/NETWR/WAERK), SalesOrderItem
 >   (VBELN/POSNR/MATNR/KWMENG/VRKME — composite key)
@@ -115,8 +180,6 @@ current branch from this alone.
 > - `ZSTOCK_SRV` — Stock (MATNR/WERKS/LABST/MEINS — composite key)
 > - `ZFIN_SRV` — GLAccount (SAKNR/TXT50/MWSKZ), CostCenter
 >   (KOSTL/KTEXT/BUKRS)
-> - `ZEXPENSE_SRV` — Expense
->   (BELNR/PERNR/BLDAT/WRBTR/WAERS/KOSTL/SAKNR/SGTXT/Status)
 >
 > A few representative rows per set (3–6), with real-looking SAP
 > formatting: zero-padded keys (`0000001000`), uppercase country codes,
@@ -170,14 +233,19 @@ current branch from this alone.
 > expense back to SAP via REST and via the integration push.
 >
 > ### Definition of done
-> - `dart run bin/server.dart` boots without errors and serves all four
->   surfaces
-> - `curl /api/v1/expenses` returns the seed rows; `POST` creates one;
->   `PATCH /api/v1/expenses/{id}` updates status
+> - `dart run bin/server.dart` boots without errors and serves the REST,
+>   Admin and Integration mounts (OData if included)
+> - `curl /api/v1/employees` and `curl /api/v1/expenses` return the seed
+>   rows; `POST /api/v1/expenses` creates one; `PATCH
+>   /api/v1/expenses/{id}` updates Status — this is the **outbound
+>   write-back contract** the rest of the system depends on
+> - The auth middleware exists and is wired through every mount as a
+>   no-op; swapping it for a real implementation requires editing one
+>   file
 > - `PUT /api/v1/integration/config/surreal` + `POST /test-connection`
->   round-trips against a real SurrealDB (HTTP API)
-> - Pull and Push runs against `expenses` produce audit events with
->   correct counts; dry-run leaves both stores unchanged
+>   round-trips against a real SurrealDB
+> - Pull and Push runs against `employees` and `expenses` produce audit
+>   events with correct counts; dry-run leaves both stores unchanged
 > - Flutter app boots on web, all three tabs render, and the
 >   Integration tab can drive a full Pull → Push → Audit cycle
 > - All persistence files survive a server restart
@@ -192,11 +260,23 @@ current branch from this alone.
   fresh against the spec.
 - **Expect minor drift.** Field-by-field reproduction isn't the goal;
   surface-by-surface reproduction is.
-- **Iterate, don't one-shot.** This particular project landed across
-  three turns:
-  1. Build the mock OData gateway + Flutter admin
-  2. Add the REST API and the expenses write-back
-  3. Add the SurrealDB integration with audit and integration UI
+- **Iterate, don't one-shot.** A sensible order:
+  1. Build the mock ECC 6 REST API + Flutter admin (HR + Expenses
+     services, plus supporting ECC reads). Skip OData entirely on the
+     first pass — only add it later if a downstream consumer needs it.
+  2. Add the no-op auth middleware + Flutter auth-mode stub. Keep the
+     real scheme TBD; this is purely the seam.
+  3. Add the SurrealDB integration with audit, plus the Integration tab.
 
   Splitting the prompt the same way often produces better results
   than handing the agent the whole thing at once.
+
+- **Don't assume SAP Gateway.** The real ECC 6 system may *or may not*
+  sit behind SAP NetWeaver Gateway — the integration contract is REST
+  either way. The mock should not assume `/sap/opu/odata/sap/` URL
+  shapes are the primary surface.
+
+- **Auth will change.** Treat the current no-op middleware and empty
+  `_authHeaders()` as the contract; a future iteration will fill them
+  in with whatever the real system requires (likely Basic, OAuth2
+  client-credentials, or SAML bearer — to be confirmed).
