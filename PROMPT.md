@@ -37,11 +37,11 @@ current branch from this alone.
 > ### Repo layout
 > ```
 > ├── server/   Dart shelf server (Dart SDK ^3.4.0)
-> └── app/      Flutter app, lib/ only (platforms regenerated via `flutter create .`)
+> └── app/      Flutter web app, lib/ only (web/ regenerated via `flutter create .`)
 > ```
-> The app's platform folders (`android/`, `ios/`, `web/`, ...) must NOT be
-> checked in — gitignore them and tell the user to run
-> `flutter create . --platforms=web,android,ios --org com.sapgateway`.
+> Target **web only** — no Android, iOS, desktop. The generated `web/`
+> folder must NOT be checked in; gitignore it and tell the user to run
+> `flutter create . --platforms=web --org com.sapgateway`.
 >
 > ### Server (Dart, package `shelf` + `shelf_router`, no other deps)
 >
@@ -175,15 +175,17 @@ current branch from this alone.
 > formatting: zero-padded keys (`0000001000`), uppercase country codes,
 > stringified decimals (`"12450.00"`), ISO datetimes (`2026-05-10T00:00:00`).
 >
-> ### Flutter app (Dart SDK ^3.4.0, Flutter ≥3.22.0)
+> ### Flutter app (web only — Dart SDK ^3.4.0, Flutter ≥3.22.0)
 >
-> Deps: `flutter`, `http`, `shared_preferences`, `provider`. Nothing else.
+> Deps: `flutter`, `http`, `shared_preferences`, `provider`. Nothing
+> else. Don't add anything mobile-specific.
 >
 > - Single `AppState` (ChangeNotifier) owning the gateway base URL via
 >   `SharedPreferences` and exposing a `GatewayApi` client
 > - Material 3 theme, dark + light, colour seed `#1E3A5F`
 > - Responsive shell: `NavigationRail` on width ≥720, `NavigationBar`
->   below — three destinations:
+>   below (the breakpoint matters on web for narrow browser windows) —
+>   three destinations:
 >   - **Services** — list/create/edit/delete services and their entity
 >     types/properties/sets; row browser per set with add/edit/delete;
 >     property rename must cascade through existing rows
@@ -237,8 +239,8 @@ current branch from this alone.
 >   round-trips against a real SurrealDB
 > - Pull and Push runs against `employees` and `expenses` produce audit
 >   events with correct counts; dry-run leaves both stores unchanged
-> - Flutter app boots on web, all three tabs render, and the
->   Integration tab can drive a full Pull → Push → Audit cycle
+> - `flutter run -d chrome` boots the app, all three tabs render, and
+>   the Integration tab can drive a full Pull → Push → Audit cycle
 > - All persistence files survive a server restart
 
 ---

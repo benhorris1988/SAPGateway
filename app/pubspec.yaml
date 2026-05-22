@@ -1,5 +1,5 @@
 name: sap_gateway_app
-description: Admin UI for the mock SAP NetWeaver Gateway. Targets web, Android, iOS.
+description: Admin UI for the mock SAP NetWeaver Gateway. Web only.
 publish_to: none
 version: 0.1.0
 

@@ -9,8 +9,8 @@ endpoints are real and queryable.
 
 ```
 sapgateway/
-├── server/   Dart shelf server: OData v2 endpoints + JSON admin API
-└── app/      Flutter front-end (web, Android, iOS) to manage the gateway
+├── server/   Dart shelf server: REST + OData v2 + JSON admin API
+└── app/      Flutter web front-end to manage the gateway
 ```
 
 ## Running the server
@@ -168,23 +168,15 @@ wire (only a `passwordSet: true/false` flag).
 
 ## Running the Flutter app
 
-The `app/` directory only contains the cross-platform `lib/` source and
-`pubspec.yaml`. Platform folders (`android/`, `ios/`, `web/`, etc.) are
-intentionally not committed — generate them locally:
+The app targets **web only**. The `app/` directory only contains the
+`lib/` source and `pubspec.yaml`; the generated `web/` folder is not
+committed — generate it locally:
 
 ```bash
 cd app
-flutter create . --platforms=web,android,ios --org com.sapgateway
+flutter create . --platforms=web --org com.sapgateway
 flutter pub get
-
-# Web
 flutter run -d chrome
-
-# Android
-flutter run -d <android-device-id>
-
-# iOS (on macOS only)
-flutter run -d <ios-device-id>
 ```
 
 The app defaults to `http://localhost:8080` — change the **Gateway URL** in
