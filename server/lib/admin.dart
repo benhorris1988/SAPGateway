@@ -295,6 +295,12 @@ class AdminHandler {
       return Response(204);
     });
 
+    // ─── Connections ─────────────────────────────────────────────────
+    r.get('/connections', (Request req) {
+      final base = _baseUrlOf(req);
+      return _ok(_connectionCatalogue(base));
+    });
+
     // ─── Misc ────────────────────────────────────────────────────────
     r.post('/reset', (Request _) async {
       await store.reset();
@@ -302,6 +308,129 @@ class AdminHandler {
     });
 
     return r;
+  }
+
+  /// Catalogue of every connection surface this gateway exposes. Consumed by
+  /// the Flutter admin UI so a single list reflects every protocol it offers.
+  List<Map<String, dynamic>> _connectionCatalogue(String base) {
+    final firstService = store.services.isEmpty ? null : store.services.first;
+    final firstSet =
+        firstService == null || firstService.entitySets.isEmpty
+            ? null
+            : firstService.entitySets.first;
+
+    String odataExampleV2() => firstService == null
+        ? '$base/sap/opu/odata/sap/'
+        : '$base/sap/opu/odata/sap/${firstService.name}/${firstSet?.name ?? ''}?\$format=json&\$top=5';
+
+    String odataExampleV4() => firstService == null
+        ? '$base/sap/opu/odata4/sap/'
+        : '$base/sap/opu/odata4/sap/${firstService.name}/${firstSet?.name ?? ''}?\$count=true&\$top=5';
+
+    String restExample() => firstService == null
+        ? '$base/sap/rest/'
+        : '$base/sap/rest/${firstService.name}/${firstSet?.name ?? ''}?limit=5';
+
+    return [
+      {
+        'id': 'odata_v2',
+        'name': 'OData v2',
+        'kind': 'sap',
+        'description':
+            'NetWeaver Gateway compatible SAP OData v2 surface (XML metadata, '
+                'JSON or XML payloads, \$filter / \$expand subset).',
+        'root': '$base/sap/opu/odata/sap/',
+        'example': odataExampleV2(),
+        'methods': ['GET', 'POST', 'PUT', 'PATCH', 'MERGE', 'DELETE'],
+      },
+      {
+        'id': 'odata_v4',
+        'name': 'OData v4',
+        'kind': 'sap',
+        'description':
+            'OASIS OData v4 (S/4HANA Gateway style). JSON-only by default, '
+                'EDMX 4.0 metadata, \$count=true, \$select, \$filter.',
+        'root': '$base/sap/opu/odata4/sap/',
+        'example': odataExampleV4(),
+        'methods': ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      },
+      {
+        'id': 'sap_rest',
+        'name': 'SAP REST',
+        'kind': 'sap',
+        'description':
+            'Plain JSON REST shape — what a Z-program / custom REST API on '
+                'top of SAP typically exposes. Uses where, limit, offset, fields.',
+        'root': '$base/sap/rest/',
+        'example': restExample(),
+        'methods': ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      },
+      {
+        'id': 'sap_soap',
+        'name': 'SOAP / BAPI / RFC',
+        'kind': 'sap',
+        'description':
+            'ECC-era SOAP envelopes for BAPI_*_GETLIST functions and the '
+                'generic RFC_READ_TABLE call. Accepts both SOAP XML and JSON-RFC bodies.',
+        'root': '$base/sap/bc/srt/',
+        'example': '$base/sap/bc/srt/',
+        'methods': ['GET', 'POST'],
+      },
+      {
+        'id': 'sap_idoc',
+        'name': 'IDoc (ALE / EDI)',
+        'kind': 'sap',
+        'description':
+            'ORDERS05, DEBMAS06, CREMAS05, MATMAS05, ORDERS_PURCH_05, COND_A05 — '
+                'XML-shaped IDoc batches with EDI_DC40 control records.',
+        'root': '$base/sap/idoc/',
+        'example': '$base/sap/idoc/ORDERS05',
+        'methods': ['GET', 'POST'],
+      },
+      {
+        'id': 'sqlserver_2017',
+        'name': 'SQL Server 2017',
+        'kind': 'database',
+        'description':
+            'T-SQL SELECT surface mimicking SQL Server 2017 (compat level 140, '
+                'classic @@VERSION string).',
+        'root': '$base/sqlserver/2017/',
+        'example': '$base/sqlserver/2017/info',
+        'methods': ['GET', 'POST'],
+      },
+      {
+        'id': 'sqlserver_2022',
+        'name': 'SQL Server 2022',
+        'kind': 'database',
+        'description':
+            'T-SQL SELECT surface mimicking SQL Server 2022 (compat level 160, '
+                'ledger / PSPO / Synapse Link advertised on /info).',
+        'root': '$base/sqlserver/2022/',
+        'example': '$base/sqlserver/2022/info',
+        'methods': ['GET', 'POST'],
+      },
+      {
+        'id': 'surrealdb',
+        'name': 'SurrealDB',
+        'kind': 'database',
+        'description':
+            'SurrealDB v1.x-shaped HTTP API: /sql, /key/<table>[/<id>], '
+                '/version. Same store, surfaced as SurrealQL.',
+        'root': '$base/surrealdb/',
+        'example': '$base/surrealdb/key/CustomerSet',
+        'methods': ['GET', 'POST', 'PATCH', 'DELETE'],
+      },
+    ];
+  }
+
+  String _baseUrlOf(Request req) {
+    final scheme = req.requestedUri.scheme;
+    final host = req.requestedUri.host;
+    final port = req.requestedUri.port;
+    final defaultPort = (scheme == 'https' && port == 443) ||
+        (scheme == 'http' && port == 80) ||
+        port == 0;
+    return defaultPort ? '$scheme://$host' : '$scheme://$host:$port';
   }
 
   // ─── helpers ────────────────────────────────────────────────────────

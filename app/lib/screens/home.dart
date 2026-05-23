@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'connections.dart';
 import 'services.dart';
 import 'settings.dart';
 
@@ -18,11 +19,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const _pages = <Widget>[
     ServicesScreen(),
+    ConnectionsScreen(),
     SettingsScreen(),
   ];
 
   static const _destinations = <_Dest>[
     _Dest(Icons.account_tree_outlined, Icons.account_tree, 'Services'),
+    _Dest(Icons.cable_outlined, Icons.cable, 'Connections'),
     _Dest(Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
 

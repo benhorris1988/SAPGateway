@@ -125,3 +125,35 @@ class EntitySetSummary {
         rowCount: (json['rowCount'] as int?) ?? 0,
       );
 }
+
+/// One row from `/admin/connections` — describes one connection surface the
+/// gateway exposes (OData v2, v4, REST, SOAP, IDoc, SQL Server, SurrealDB).
+class ConnectionInfo {
+  ConnectionInfo({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.description,
+    required this.root,
+    required this.example,
+    required this.methods,
+  });
+
+  final String id;
+  final String name;
+  final String kind; // "sap" or "database"
+  final String description;
+  final String root;
+  final String example;
+  final List<String> methods;
+
+  factory ConnectionInfo.fromJson(Map<String, dynamic> json) => ConnectionInfo(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        kind: (json['kind'] as String?) ?? 'sap',
+        description: (json['description'] as String?) ?? '',
+        root: (json['root'] as String?) ?? '',
+        example: (json['example'] as String?) ?? '',
+        methods: ((json['methods'] as List?) ?? const []).cast<String>(),
+      );
+}

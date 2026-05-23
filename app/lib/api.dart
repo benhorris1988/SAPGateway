@@ -201,6 +201,17 @@ class GatewayApi {
     _check(await http.post(_u('/admin/reset')));
   }
 
+  /// Catalogue of every protocol surface the gateway exposes (OData v2 + v4,
+  /// REST, SOAP/BAPI, IDoc, SQL Server 2017/2022, SurrealDB).
+  Future<List<ConnectionInfo>> listConnections() async {
+    final res = await http.get(_u('/admin/connections'));
+    _check(res);
+    return (jsonDecode(res.body) as List)
+        .cast<Map<String, dynamic>>()
+        .map(ConnectionInfo.fromJson)
+        .toList();
+  }
+
   static const Map<String, String> _jsonHeader = {
     'content-type': 'application/json',
   };

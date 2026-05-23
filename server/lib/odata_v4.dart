@@ -6,27 +6,25 @@ import 'filter.dart';
 import 'models.dart';
 import 'store.dart';
 
-/// OData v2 surface. URL shape mirrors SAP NetWeaver Gateway:
+/// OData v4 surface. Reuses the same store as the v2 handler, so every change
+/// made through the admin API is reflected on both versions at once.
 ///
-///   /sap/opu/odata/sap/                            -> service catalog
-///   /sap/opu/odata/sap/<SVC>/                      -> service document
-///   /sap/opu/odata/sap/<SVC>/$metadata             -> EDMX schema
-///   /sap/opu/odata/sap/<SVC>/<EntitySet>           -> list (GET, POST)
-///   /sap/opu/odata/sap/<SVC>/<EntitySet>(<key>)    -> single (GET, PUT, DELETE)
-class ODataHandler {
-  ODataHandler(this.store);
+///   /sap/opu/odata4/sap/                            -> service catalog
+///   /sap/opu/odata4/sap/<SVC>/                      -> service document
+///   /sap/opu/odata4/sap/<SVC>/$metadata             -> EDMX 4.0 schema
+///   /sap/opu/odata4/sap/<SVC>/<EntitySet>           -> list (GET, POST)
+///   /sap/opu/odata4/sap/<SVC>/<EntitySet>(<key>)    -> single (GET, PATCH, PUT, DELETE)
+///   /sap/opu/odata4/sap/<SVC>/$count                -> total entity count across sets
+class ODataV4Handler {
+  ODataV4Handler(this.store);
 
   final GatewayStore store;
 
-  /// Mounted at `/sap/opu/odata/sap/` — by the time we get here the prefix is
-  /// stripped, so `req.url.pathSegments[0]` is already the service name. A
-  /// trailing slash produces an empty final segment which we discard.
   Handler get handler => (Request req) async {
         final tail = [...req.url.pathSegments];
         while (tail.isNotEmpty && tail.last.isEmpty) {
           tail.removeLast();
         }
-
         if (tail.isEmpty) return _serviceCatalog(req);
         final serviceName = tail[0];
         final service = store.serviceByName(serviceName);
@@ -35,9 +33,8 @@ class ODataHandler {
         }
         if (tail.length == 1) return _serviceDocument(req, service);
         final second = tail[1];
-        if (second == r'$metadata') return _metadata(service);
+        if (second == r'$metadata') return _metadata(req, service);
 
-        // EntitySet (possibly with key segment baked into the path component).
         final keyMatch =
             RegExp(r'^([A-Za-z_][\w]*)\((.*)\)$').firstMatch(second);
         String entitySetName;
@@ -60,73 +57,60 @@ class ODataHandler {
               'EntityType "${entitySet.entityTypeName}" missing for set $entitySetName');
         }
 
+        // Tail segments after the set name: count, value, property access.
+        if (tail.length >= 3 && keyExpr == null && tail[2] == r'$count') {
+          return _setCount(req, entitySet, entityType);
+        }
+
         if (keyExpr != null) {
-          return _handleSingle(req, service, entitySet, entityType, keyExpr);
+          return _handleSingle(req, service, entitySet, entityType, keyExpr,
+              extra: tail.skip(2).toList());
         }
         return _handleCollection(req, service, entitySet, entityType);
       };
 
-  // ─── Routes ────────────────────────────────────────────────────────────
-
   Response _serviceCatalog(Request req) {
-    final services = store.services
-        .map((s) => <String, dynamic>{
-              'name': s.name,
-              'url': '${_baseUrl(req)}/sap/opu/odata/sap/${s.name}/',
-              'description': s.description,
-            })
-        .toList();
+    final base = _baseUrl(req);
     return _json(<String, dynamic>{
-      'd': <String, dynamic>{
-        'EntitySets': store.services.map((s) => s.name).toList(),
-        'Services': services,
-      },
+      '@odata.context': '$base/sap/opu/odata4/sap/\$metadata',
+      'value': [
+        for (final s in store.services)
+          <String, dynamic>{
+            'name': s.name,
+            'url': '${s.name}/',
+            'kind': 'Service',
+            'title': s.description.isEmpty ? s.name : s.description,
+          },
+      ],
     });
   }
 
   Response _serviceDocument(Request req, GatewayService s) {
-    final fmt = req.url.queryParameters['\$format'];
-    if (fmt == 'json') {
-      return _json(<String, dynamic>{
-        'd': <String, dynamic>{
-          'EntitySets': s.entitySets.map((e) => e.name).toList(),
-        },
-      });
-    }
-    final buf = StringBuffer()
-      ..writeln('<?xml version="1.0" encoding="utf-8"?>')
-      ..writeln(
-          '<service xml:base="${_baseUrl(req)}/sap/opu/odata/sap/${s.name}/"')
-      ..writeln('         xmlns="http://www.w3.org/2007/app"')
-      ..writeln('         xmlns:atom="http://www.w3.org/2005/Atom">')
-      ..writeln('  <workspace>')
-      ..writeln(
-          '    <atom:title>${_xml(s.description.isEmpty ? s.name : s.description)}</atom:title>');
-    for (final es in s.entitySets) {
-      buf
-        ..writeln('    <collection href="${es.name}">')
-        ..writeln('      <atom:title>${es.name}</atom:title>')
-        ..writeln('    </collection>');
-    }
-    buf
-      ..writeln('  </workspace>')
-      ..writeln('</service>');
-    return Response.ok(buf.toString(),
-        headers: {'content-type': 'application/xml; charset=utf-8'});
+    final base = _baseUrl(req);
+    return _json(<String, dynamic>{
+      '@odata.context':
+          '$base/sap/opu/odata4/sap/${s.name}/\$metadata',
+      'value': [
+        for (final es in s.entitySets)
+          <String, dynamic>{
+            'name': es.name,
+            'kind': 'EntitySet',
+            'url': es.name,
+          },
+      ],
+    });
   }
 
-  Response _metadata(GatewayService s) {
+  Response _metadata(Request req, GatewayService s) {
     final buf = StringBuffer()
       ..writeln('<?xml version="1.0" encoding="utf-8"?>')
       ..writeln(
-          '<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx">')
+          '<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">')
+      ..writeln('  <edmx:DataServices>')
       ..writeln(
-          '  <edmx:DataServices m:DataServiceVersion="2.0" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">')
-      ..writeln(
-          '    <Schema Namespace="${s.namespace}" xmlns="http://schemas.microsoft.com/ado/2008/09/edm" xmlns:sap="http://www.sap.com/Protocols/SAPData">');
+          '    <Schema Namespace="${s.namespace}" xmlns="http://docs.oasis-open.org/odata/ns/edm">');
     for (final t in s.entityTypes) {
-      buf.writeln(
-          '      <EntityType Name="${t.name}" sap:content-version="1">');
+      buf.writeln('      <EntityType Name="${t.name}">');
       if (t.keys.isNotEmpty) {
         buf.writeln('        <Key>');
         for (final k in t.keys) {
@@ -142,14 +126,12 @@ class ODataHandler {
           if (p.maxLength != null) 'MaxLength="${p.maxLength}"',
           if (p.precision != null) 'Precision="${p.precision}"',
           if (p.scale != null) 'Scale="${p.scale}"',
-          if (p.label != null) 'sap:label="${_xml(p.label!)}"',
         ];
         buf.writeln('        <Property ${attrs.join(' ')} />');
       }
       buf.writeln('      </EntityType>');
     }
-    buf.writeln(
-        '      <EntityContainer Name="${s.name}_Entities" m:IsDefaultEntityContainer="true">');
+    buf.writeln('      <EntityContainer Name="${s.name}_Container">');
     for (final es in s.entitySets) {
       buf.writeln(
           '        <EntitySet Name="${es.name}" EntityType="${s.namespace}.${es.entityTypeName}"/>');
@@ -161,7 +143,25 @@ class ODataHandler {
       ..writeln('</edmx:Edmx>');
     return Response.ok(buf.toString(), headers: {
       'content-type': 'application/xml; charset=utf-8',
-      'dataserviceversion': '2.0',
+      'odata-version': '4.0',
+    });
+  }
+
+  Response _setCount(Request req, EntitySet es, EntityType et) {
+    final qp = req.url.queryParameters;
+    var rows = es.rows.toList();
+    final filterExpr = qp['\$filter'];
+    if (filterExpr != null && filterExpr.trim().isNotEmpty) {
+      try {
+        final filter = FilterParser(filterExpr).parse();
+        rows = rows.where((r) => filter.evaluate(r) == true).toList();
+      } catch (e) {
+        return _bad('Invalid \$filter: $e');
+      }
+    }
+    return Response.ok('${rows.length}', headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'odata-version': '4.0',
     });
   }
 
@@ -182,21 +182,20 @@ class ODataHandler {
         if (keyVals.length != et.keys.length) {
           return _bad('Missing key field(s): ${et.keys}');
         }
-        if (_findByKeys(es, et, body) != null) {
+        if (_indexByKeys(es, et, body) >= 0) {
           return _conflict('Entity with that key already exists');
         }
         es.rows.add(Map<String, dynamic>.from(body));
         await store.save();
-        return _json(<String, dynamic>{
-          'd': _wrapEntity(req, svc, es, et, body),
-        }, status: 201);
+        return _json(_wrapEntity(req, svc, es, et, body), status: 201);
       default:
         return Response(405, body: 'Method not allowed');
     }
   }
 
   Future<Response> _handleSingle(Request req, GatewayService svc, EntitySet es,
-      EntityType et, String keyExpr) async {
+      EntityType et, String keyExpr,
+      {required List<String> extra}) async {
     final keys = _parseKeyExpr(keyExpr, et);
     if (keys == null) {
       return _bad('Could not parse key "$keyExpr" for ${es.name}');
@@ -204,20 +203,37 @@ class ODataHandler {
     final idx = _indexByKeys(es, et, keys);
     if (idx < 0) return _notFound('Entity not found');
 
+    // /<set>(key)/<Property> — primitive value access
+    if (extra.length >= 2) {
+      final prop = extra[1];
+      final tail = extra.skip(2).toList();
+      if (et.propertyByName(prop) == null) {
+        return _notFound('Property "$prop" not found on ${et.name}');
+      }
+      final row = es.rows[idx];
+      if (tail.isNotEmpty && tail[0] == r'$value') {
+        return Response.ok(row[prop]?.toString() ?? '',
+            headers: {'content-type': 'text/plain; charset=utf-8'});
+      }
+      return _json(<String, dynamic>{
+        '@odata.context':
+            '${_baseUrl(req)}/sap/opu/odata4/sap/${svc.name}/\$metadata#${es.name}($prop)',
+        'value': row[prop],
+      });
+    }
+
     switch (req.method) {
       case 'GET':
-        return _json(<String, dynamic>{
-          'd': _wrapEntity(req, svc, es, et, es.rows[idx]),
-        });
+        return _json(_wrapEntity(req, svc, es, et, es.rows[idx]));
       case 'PUT':
       case 'PATCH':
-      case 'MERGE':
         final body = jsonDecode(await req.readAsString());
-        if (body is! Map<String, dynamic>)
+        if (body is! Map<String, dynamic>) {
           return _bad('Body must be a JSON object');
+        }
         es.rows[idx]
           ..addAll(body)
-          ..addAll(keys); // keys are immutable
+          ..addAll(keys);
         await store.save();
         return Response(204);
       case 'DELETE':
@@ -229,14 +245,11 @@ class ODataHandler {
     }
   }
 
-  // ─── $filter / $orderby / paging ───────────────────────────────────────
-
   Response _queryCollection(
       Request req, GatewayService svc, EntitySet es, EntityType et) {
     final qp = req.url.queryParameters;
     var rows = es.rows.toList();
 
-    // $filter
     final filterExpr = qp['\$filter'];
     if (filterExpr != null && filterExpr.trim().isNotEmpty) {
       try {
@@ -247,7 +260,6 @@ class ODataHandler {
       }
     }
 
-    // $orderby
     final orderBy = qp['\$orderby'];
     if (orderBy != null && orderBy.trim().isNotEmpty) {
       final parts = orderBy.split(',').map((s) => s.trim()).toList();
@@ -256,24 +268,20 @@ class ODataHandler {
           final tokens = part.split(RegExp(r'\s+'));
           final field = tokens[0];
           final desc = tokens.length > 1 && tokens[1].toLowerCase() == 'desc';
-          final av = a[field];
-          final bv = b[field];
-          final cmp = compareValues(av, bv);
+          final cmp = compareValues(a[field], b[field]);
           if (cmp != 0) return desc ? -cmp : cmp;
         }
         return 0;
       });
     }
 
-    final totalBeforePaging = rows.length;
+    final total = rows.length;
 
-    // $skip / $top
     final skip = int.tryParse(qp['\$skip'] ?? '') ?? 0;
     final top = int.tryParse(qp['\$top'] ?? '');
     if (skip > 0) rows = rows.skip(skip).toList();
     if (top != null) rows = rows.take(top).toList();
 
-    // $select
     final selectExpr = qp['\$select'];
     List<String>? selectFields;
     if (selectExpr != null &&
@@ -282,41 +290,42 @@ class ODataHandler {
       selectFields = selectExpr.split(',').map((s) => s.trim()).toList();
     }
 
+    final base = _baseUrl(req);
     final wrappedRows = rows.map((r) {
       final row = selectFields == null
           ? r
           : <String, dynamic>{
               for (final f in selectFields) f: r[f],
             };
-      return _wrapEntity(req, svc, es, et, row);
+      return _wrapEntity(req, svc, es, et, row, isInner: true);
     }).toList();
 
-    final response = <String, dynamic>{'results': wrappedRows};
-    if (qp['\$inlinecount']?.toLowerCase() == 'allpages') {
-      response['__count'] = totalBeforePaging.toString();
-    }
-    return _json(<String, dynamic>{'d': response});
+    final response = <String, dynamic>{
+      '@odata.context':
+          '$base/sap/opu/odata4/sap/${svc.name}/\$metadata#${es.name}',
+      if (qp['\$count']?.toLowerCase() == 'true') '@odata.count': total,
+      'value': wrappedRows,
+    };
+    return _json(response);
   }
 
-  // ─── Helpers ────────────────────────────────────────────────────────────
-
   Map<String, dynamic> _wrapEntity(Request req, GatewayService svc,
-      EntitySet es, EntityType et, Map<String, dynamic> row) {
-    final keyPart = _buildKeyForUri(et, row);
+      EntitySet es, EntityType et, Map<String, dynamic> row,
+      {bool isInner = false}) {
+    final base = _baseUrl(req);
     final out = <String, dynamic>{
-      '__metadata': <String, dynamic>{
-        'uri':
-            '${_baseUrl(req)}/sap/opu/odata/sap/${svc.name}/${es.name}($keyPart)',
-        'type': '${svc.namespace}.${et.name}',
-      },
+      if (!isInner)
+        '@odata.context':
+            '$base/sap/opu/odata4/sap/${svc.name}/\$metadata#${es.name}/\$entity',
+      '@odata.id':
+          '${es.name}(${_buildKeyForUri(et, row)})',
+      '@odata.type': '#${svc.namespace}.${et.name}',
     };
     for (final p in et.properties) {
       if (row.containsKey(p.name)) out[p.name] = row[p.name];
     }
-    // Any row fields the entity-type doesn't yet know about (e.g. just after a
-    // property was deleted) are still surfaced so the admin UI can see them.
     for (final k in row.keys) {
-      if (!out.containsKey(k) && k != '__metadata') out[k] = row[k];
+      if (!out.containsKey(k) && !k.startsWith('@')) out[k] = row[k];
     }
     return out;
   }
@@ -332,7 +341,6 @@ class ODataHandler {
     if (v == null) return 'null';
     if (v is num) return v.toString();
     final s = v.toString();
-    // Always quote strings — SAP keys are nearly always strings.
     return "'${s.replaceAll("'", "''")}'";
   }
 
@@ -384,12 +392,6 @@ class ODataHandler {
     return t;
   }
 
-  Map<String, dynamic>? _findByKeys(
-      EntitySet es, EntityType et, Map<String, dynamic> body) {
-    final i = _indexByKeys(es, et, body);
-    return i >= 0 ? es.rows[i] : null;
-  }
-
   int _indexByKeys(EntitySet es, EntityType et, Map<String, dynamic> keys) {
     for (var i = 0; i < es.rows.length; i++) {
       var match = true;
@@ -419,34 +421,24 @@ class ODataHandler {
         body: jsonEncode(body),
         headers: const {
           'content-type': 'application/json; charset=utf-8',
-          'dataserviceversion': '2.0',
+          'odata-version': '4.0',
         },
       );
 
   Response _notFound(String msg) =>
-      Response.notFound(jsonEncode(_odataError('404', msg)),
+      Response.notFound(jsonEncode(_v4Error('404', msg)),
           headers: const {'content-type': 'application/json'});
   Response _bad(String msg) => Response.badRequest(
-      body: jsonEncode(_odataError('400', msg)),
+      body: jsonEncode(_v4Error('400', msg)),
       headers: const {'content-type': 'application/json'});
   Response _conflict(String msg) => Response(409,
-      body: jsonEncode(_odataError('409', msg)),
+      body: jsonEncode(_v4Error('409', msg)),
       headers: const {'content-type': 'application/json'});
   Response _internal(String msg) => Response.internalServerError(
-      body: jsonEncode(_odataError('500', msg)),
+      body: jsonEncode(_v4Error('500', msg)),
       headers: const {'content-type': 'application/json'});
 
-  Map<String, dynamic> _odataError(String code, String msg) => {
-        'error': {
-          'code': code,
-          'message': {'lang': 'en', 'value': msg},
-        }
+  Map<String, dynamic> _v4Error(String code, String msg) => {
+        'error': {'code': code, 'message': msg},
       };
-
-  String _xml(String s) => s
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
 }
-
