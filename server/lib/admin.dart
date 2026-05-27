@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
+import 'logging.dart';
 import 'models.dart';
 import 'store.dart';
 
@@ -299,6 +300,49 @@ class AdminHandler {
     r.get('/connections', (Request req) {
       final base = _baseUrlOf(req);
       return _ok(_connectionCatalogue(base));
+    });
+
+    // ─── Logs ────────────────────────────────────────────────────────
+    // Read the recent error/request log (server + ingested client entries).
+    r.get('/logs', (Request req) {
+      final qp = req.url.queryParameters;
+      final limit = int.tryParse(qp['limit'] ?? '') ?? 200;
+      final level = LogLevelName.parse(qp['level']);
+      final source = qp['source'];
+      final entries = logger.recent(
+        limit: limit,
+        minLevel: level,
+        source: source,
+      );
+      return _ok({
+        'count': entries.length,
+        'entries': entries.map((e) => e.toJson()).toList(),
+      });
+    });
+
+    // Ingest an error reported by the Flutter client so front-end and
+    // back-end failures land in one place.
+    r.post('/logs/client', (Request req) async {
+      final body = await _readJson(req);
+      if (body == null) return _bad('body required');
+      final level =
+          LogLevelName.parse(body['level'] as String?) ?? LogLevel.error;
+      final message = (body['message'] as String?) ?? '(no message)';
+      DateTime ts;
+      try {
+        ts = DateTime.parse(body['timestamp'] as String);
+      } catch (_) {
+        ts = DateTime.now();
+      }
+      logger.ingest(LogEntry(
+        timestamp: ts,
+        level: level,
+        message: message,
+        source: 'client',
+        error: body['error'] as String?,
+        stackTrace: body['stackTrace'] as String?,
+      ));
+      return _ok({'ok': true}, status: 201);
     });
 
     // ─── Misc ────────────────────────────────────────────────────────

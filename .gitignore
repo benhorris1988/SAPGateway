@@ -24,4 +24,5 @@ app/.vscode/
 
 # Runtime state for the mock gateway
 server/data/runtime.json
+server/data/*.log
 server/.dart_tool/

@@ -31,6 +31,7 @@ SQL Server, SurrealDB, IDoc batches, BAPI calls, and everywhere else.
 | SQL Server 2022     | `/sqlserver/2022/`                | `@@VERSION` 16.x, compat level 160, ledger / PSPO advertised.          |
 | SurrealDB           | `/surrealdb/`                     | v1.x HTTP API: `/sql`, `/key/<table>[/<id>]`, `/version`.              |
 | Admin (CRUD)        | `/admin/services`                 | Used by the Flutter app. `/admin/connections` lists everything above.   |
+| Error log           | `/admin/logs`                     | Recent server + client errors. `?level=error&limit=50&source=client`.   |
 
 ### OData query options
 
@@ -69,6 +70,30 @@ by service (`ZSALES_SRV.CustomerSet`), or schema-qualified (`dbo.CustomerSet`).
 `POST /surrealdb/sql` accepts a SurrealQL / SQL-ish body and returns the
 canonical SurrealDB array-of-objects shape `[{"time":"…","status":"OK","result":[…]}]`.
 Records carry SurrealDB-style ids: `customerset:0000001000`.
+
+## Logging & diagnostics
+
+Both sides log errors:
+
+* **Backend** — every request is logged (info for 2xx, warn for 4xx, error for
+  5xx). Unhandled exceptions are caught by middleware, logged with a stack
+  trace, and returned as a clean `500`. Failures loading/saving the runtime
+  state are logged and fall back to the seed rather than crashing. Logs go to
+  stdout/stderr and to `data/server.log` (configure with `--log <path>` /
+  `--log-level debug|info|warn|error`; pass `--log ''` to disable the file).
+  Read the recent log over HTTP:
+
+  ```bash
+  curl 'http://localhost:8080/admin/logs?level=error&limit=50'
+  ```
+
+* **Frontend** — the Flutter app installs `FlutterError.onError`, a
+  `PlatformDispatcher.onError` handler, and a guarded zone so no error goes
+  unrecorded. All API calls route through one logged choke point. Error-level
+  entries are shipped to the gateway's `/admin/logs/client` endpoint, so
+  client and server failures land in the same `/admin/logs` feed. The
+  **Settings → Diagnostics** panel shows recent client warnings/errors and can
+  copy them to the clipboard.
 
 ## Running the server
 

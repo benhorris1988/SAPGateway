@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../logging.dart';
 import '../state.dart';
 import '../widgets/error_banner.dart';
 
@@ -115,6 +117,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const Divider(height: 48),
+          Text('Diagnostics', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          const Text(
+              'Recent client-side warnings and errors. Errors are also shipped '
+              'to the gateway log (visible at /admin/logs).'),
+          const SizedBox(height: 12),
+          const _RecentLogs(),
+          const Divider(height: 48),
           Text('Danger zone', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           const Text(
@@ -130,6 +140,140 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 foregroundColor: Theme.of(context).colorScheme.error,
                 side: BorderSide(color: Theme.of(context).colorScheme.error),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows the most recent warning/error entries from the in-memory app log.
+class _RecentLogs extends StatefulWidget {
+  const _RecentLogs();
+
+  @override
+  State<_RecentLogs> createState() => _RecentLogsState();
+}
+
+class _RecentLogsState extends State<_RecentLogs> {
+  List<AppLogEntry> _entries() => appLog.recent
+      .where((e) =>
+          e.level == AppLogLevel.warn || e.level == AppLogLevel.error)
+      .toList()
+      .reversed
+      .toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = _entries();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => setState(() {}),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Refresh'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: entries.isEmpty
+                  ? null
+                  : () {
+                      appLog.clear();
+                      setState(() {});
+                    },
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Clear'),
+            ),
+            const SizedBox(width: 8),
+            if (entries.isNotEmpty)
+              IconButton(
+                tooltip: 'Copy all',
+                icon: const Icon(Icons.copy, size: 18),
+                onPressed: () {
+                  final text = entries
+                      .map((e) =>
+                          '${e.timestamp.toIso8601String()} [${e.level.label}] ${e.message}'
+                          '${e.error != null ? ' | ${e.error}' : ''}')
+                      .join('\n');
+                  Clipboard.setData(ClipboardData(text: text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Log copied')),
+                  );
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (entries.isEmpty)
+          Text('No warnings or errors recorded this session.',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+        else
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < entries.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  _LogRow(entries[i]),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LogRow extends StatelessWidget {
+  const _LogRow(this.entry);
+  final AppLogEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isError = entry.level == AppLogLevel.error;
+    final color =
+        isError ? theme.colorScheme.error : theme.colorScheme.tertiary;
+    String hhmmss(DateTime t) {
+      String two(int v) => v.toString().padLeft(2, '0');
+      return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(isError ? Icons.error_outline : Icons.warning_amber_outlined,
+              size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${entry.level.label} · ${hhmmss(entry.timestamp)}',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: color, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(entry.message, style: theme.textTheme.bodySmall),
+                if (entry.error != null) ...[
+                  const SizedBox(height: 2),
+                  Text(entry.error!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontFamily: 'monospace',
+                      )),
+                ],
+              ],
             ),
           ),
         ],

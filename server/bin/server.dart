@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -6,6 +7,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import 'package:sap_gateway_server/admin.dart';
+import 'package:sap_gateway_server/logging.dart';
 import 'package:sap_gateway_server/odata.dart';
 import 'package:sap_gateway_server/odata_v4.dart';
 import 'package:sap_gateway_server/sap_idoc.dart';
@@ -21,8 +23,21 @@ Future<void> main(List<String> args) async {
     ..addOption('port', defaultsTo: '8080')
     ..addOption('data',
         defaultsTo: 'data/runtime.json',
-        help: 'Path used to persist the configured gateway state.');
+        help: 'Path used to persist the configured gateway state.')
+    ..addOption('log',
+        defaultsTo: 'data/server.log',
+        help: 'File path for the error/request log. Empty string disables '
+            'file logging (console logging always stays on).')
+    ..addOption('log-level',
+        defaultsTo: 'info',
+        allowed: ['debug', 'info', 'warn', 'error'],
+        help: 'Minimum severity written to console and file.');
   final opts = parser.parse(args);
+
+  logger.configure(
+    minLevel: LogLevelName.parse(opts['log-level'] as String) ?? LogLevel.info,
+    filePath: opts['log'] as String,
+  );
 
   final store = GatewayStore(persistencePath: opts['data'] as String);
   await store.load();
@@ -74,6 +89,7 @@ Future<void> main(List<String> args) async {
   final pipeline = const Pipeline()
       .addMiddleware(_logRequests)
       .addMiddleware(_cors)
+      .addMiddleware(_errorHandler)
       .addHandler(root.call);
 
   final port = int.parse(opts['port'] as String);
@@ -90,7 +106,30 @@ Future<void> main(List<String> args) async {
   stdout.writeln('  SQL Server 2022: $base/sqlserver/2022/');
   stdout.writeln('  SurrealDB:       $base/surrealdb/');
   stdout.writeln('  Admin API:       $base/admin/services');
+  stdout.writeln('  Error log:       $base/admin/logs');
+  logger.info('SAP Gateway mock started on $base');
 }
+
+/// Catches anything a handler throws, logs it with a stack trace, and returns
+/// a clean 500 so the connection isn't left hanging. Sits inside the CORS
+/// middleware so error responses still carry CORS headers.
+Middleware get _errorHandler => (inner) => (req) async {
+      try {
+        return await inner(req);
+      } catch (e, st) {
+        logger.error('Unhandled error for ${req.method} /${req.url}',
+            error: e, stackTrace: st);
+        return Response.internalServerError(
+          body: jsonEncode(<String, dynamic>{
+            'error': {
+              'code': '500',
+              'message': {'lang': 'en', 'value': 'Internal server error'},
+            }
+          }),
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
+    };
 
 Middleware get _cors => (inner) => (req) async {
       if (req.method == 'OPTIONS') {
@@ -113,8 +152,15 @@ Middleware get _logRequests => (inner) => (req) async {
       final sw = Stopwatch()..start();
       final res = await inner(req);
       sw.stop();
-      stdout.writeln(
-          '${req.method.padRight(6)} ${res.statusCode} ${sw.elapsedMilliseconds}ms  /${req.url}');
+      final line =
+          '${req.method.padRight(6)} ${res.statusCode} ${sw.elapsedMilliseconds}ms  /${req.url}';
+      if (res.statusCode >= 500) {
+        logger.error(line);
+      } else if (res.statusCode >= 400) {
+        logger.warn(line);
+      } else {
+        logger.info(line);
+      }
       return res;
     };
 

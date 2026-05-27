@@ -1,13 +1,43 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'logging.dart';
 import 'screens/home.dart';
 import 'state.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final state = await AppState.load();
-  runApp(SapGatewayApp(state: state));
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // Framework (build/layout/paint) errors.
+    FlutterError.onError = (details) {
+      appLog.error(
+        'Flutter framework error: ${details.exceptionAsString()}',
+        error: details.exception,
+        stackTrace: details.stack,
+      );
+      FlutterError.presentError(details);
+    };
+
+    // Errors bubbling out of the engine / platform message handlers.
+    WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+      appLog.error('Uncaught platform error',
+          error: error, stackTrace: stack);
+      return true;
+    };
+
+    final state = await AppState.load();
+    // Ship error-level client logs to the gateway so they appear in the same
+    // log as backend errors.
+    appLog.attachShipper(state.api.logClientError);
+
+    runApp(SapGatewayApp(state: state));
+  }, (error, stack) {
+    // Anything that escapes the widget tree / async callbacks.
+    appLog.error('Uncaught error', error: error, stackTrace: stack);
+  });
 }
 
 class SapGatewayApp extends StatelessWidget {
