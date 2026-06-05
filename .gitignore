@@ -1,0 +1,31 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Generated platform folders — web only; run `flutter create . --platforms=web`
+# to regenerate locally. The other platforms are listed defensively in case
+# someone runs a broader `flutter create`.
+app/web/
+app/android/
+app/ios/
+app/linux/
+app/macos/
+app/windows/
+app/.idea/
+app/.vscode/
+
+# Editor / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Runtime state for the mock gateway
+server/data/runtime.json
+server/data/integration.json
+server/data/audit.json
+server/.dart_tool/
